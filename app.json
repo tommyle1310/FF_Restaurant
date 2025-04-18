@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "FF_Restaurant_Owner",
+    "slug": "FF_Restaurant_Owner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "splash": {
+      "image": "./assets/splashscreen_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.tommyle1310.FF_Restaurant_Owner",
+      "googleServicesFile": "./android/app/google-services.json"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "7eb4f4be-9766-4791-8e8e-64626d480465"
+      }
+    },
+    "owner": "tommyle1310"
+  },
+  "updates": {
+    "enabled": true,
+    "checkAutomatically": "ON_LOAD"
+  }
+}
