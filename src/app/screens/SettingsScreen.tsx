@@ -98,7 +98,7 @@ const SettingsScreen = () => {
                     dispatch(logout());
                     // dispatch(clearOrderTracking()); // Xóa state
                     // dispatch(clearOrderTrackingFromAsyncStorage()); // Xóa AsyncStorage
-                    navigation.navigate("Auth");
+                    navigation.navigate("Login");
                   }}
                   className="w-full"
                   variant="danger"

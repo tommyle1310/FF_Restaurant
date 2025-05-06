@@ -13,6 +13,7 @@ import IconIonicons from "react-native-vector-icons/Ionicons";
 import FFAvatar from "@/src/components/FFAvatar";
 import FFInputControl from "@/src/components/FFInputControl";
 import { spacing } from "@/src/theme";
+import { IMAGE_URL } from "@/src/assets/imageUrls";
 
 type FFAuthFormProps = {
   isSignUp: boolean;
@@ -65,7 +66,7 @@ const FFAuthForm = ({
           transform: [{ translateX: "40%" }],
         }}
       >
-        <FFAvatar avatar="https://res.cloudinary.com/dpubnzap3/image/upload/v1738820317/g2nvwg7zrqkevpdarn3r.png" />
+        <FFAvatar avatar={IMAGE_URL.DEFAULT_LOGO} />
       </View>
       <Text style={styles.headerText}>{isSignUp ? "Sign Up" : "Login"}</Text>
       <View style={styles.switchAuthContainer}>

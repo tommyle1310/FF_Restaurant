@@ -54,10 +54,7 @@ const HomeScreen = () => {
     { id: 6, icon: "wallet", label: "Ví" },
     { id: 7, icon: "bulb", label: "Marketing" },
     { id: 8, icon: "megaphone", label: "Quảng cáo" },
-    { id: 9, icon: "play", label: "Video VILL" },
-    { id: 10, icon: "people", label: "Nhân viên" },
     { id: 11, icon: "pie-chart", label: "Báo cáo" },
-    { id: 12, icon: "person", label: "Cá nhân" },
   ];
 
   return (

@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import HomeScreen from "./screens/HomeScreen";
 import MenuManagement from "./screens/MenuManagementScreen";
 import PromotionList from "./screens/PromotionScreen";
-import IncomingOrder from "./screens/Order";
+import IncomingOrder from "./screens/OrdersScreen";
 import Settings from "./screens/SettingsScreen";
 import CustomerFeedback from "./screens/CustomerFeedback";
 

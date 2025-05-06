@@ -14,7 +14,7 @@ import { loadTokenFromAsyncStorage } from "../store/authSlice";
 import { useNavigation } from "@react-navigation/native";
 
 import HomeScreen from "../app/screens/HomeScreen";
-import OrderScreen from "../app/screens/Order";
+import OrderScreen from "../app/screens/OrdersScreen";
 import LoginScreen from "../app/screens/Auth/LoginScreen";
 import SignupScreen from "../app/screens/Auth/SignupScreen";
 import SettingsScreen from "../app/screens/SettingsScreen";
@@ -240,7 +240,6 @@ const MainStackScreen = () => {
 
 const AppNavigator = () => {
   const token = useSelector((state: RootState) => state.auth.accessToken);
-  console.log("cehck token", token);
   return (
     <RootStack.Navigator initialRouteName={token ? "Main" : "Login"}>
       <RootStack.Screen
