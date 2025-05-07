@@ -316,6 +316,7 @@ export default function OrderScreen() {
       const response = await axiosInstance.get<ApiResponse>(
         `/restaurants/${restaurantId}/orders?limit=50`
       );
+      console.log("check res", response);
 
       if (response.data.EC === 0) {
         setOrders(response.data.data.orders);

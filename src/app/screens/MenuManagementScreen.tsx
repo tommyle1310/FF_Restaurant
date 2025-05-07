@@ -15,7 +15,7 @@ import FFScreenTopSection from "@/src/components/FFScreenTopSection";
 import IconIonicons from "react-native-vector-icons/Ionicons";
 import IconMaterialIcons from "react-native-vector-icons/MaterialIcons";
 import theme, { colors, spacing } from "@/src/theme";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import axiosInstance from "@/src/utils/axiosConfig";
@@ -71,8 +71,11 @@ const MenuManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMenuItemId, setSelectedMenuItemId] = useState<string>("");
   const [isShowModal, setIsShowModal] = useState(false);
+  const [isShowStatusModal, setIsShowStatusModal] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [expandedVariants, setExpandedVariants] = useState<string | null>(null);
   const globalState = useSelector((state: RootState) => state.auth);
+
   const fetchMenuItems = async () => {
     setIsLoading(true);
     try {
@@ -84,19 +87,24 @@ const MenuManagement = () => {
       if (EC === 0) {
         setMenuItems(data);
       } else {
-        Alert.alert("Error", "Failed to fetch menu items");
+        setStatusMessage("Failed to fetch menu items");
+        setIsShowStatusModal(true);
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to fetch menu items");
+      setStatusMessage("Failed to fetch menu items");
+      setIsShowStatusModal(true);
     } finally {
       setIsLoading(false);
     }
   };
-  console.log("check id res", globalState.restaurant_id);
 
-  useEffect(() => {
-    fetchMenuItems();
-  }, [globalState.restaurant_id]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (globalState.restaurant_id) {
+        fetchMenuItems();
+      }
+    }, [globalState.restaurant_id])
+  );
 
   const handleEditItem = (item: MenuItem) => {
     // navigation.navigate("EditMenuItem", { item });
@@ -118,10 +126,12 @@ const MenuManagement = () => {
           )
         );
       } else {
-        Alert.alert("Error", response.data.EM || "Failed to update menu item");
+        setStatusMessage(response.data.EM || "Failed to update menu item");
+        setIsShowStatusModal(true);
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to update menu item availability");
+      setStatusMessage("Failed to update menu item availability");
+      setIsShowStatusModal(true);
     } finally {
       setIsLoading(false);
     }
@@ -144,6 +154,22 @@ const MenuManagement = () => {
           <FFText style={{ textAlign: "center" }}>Edit this menu item</FFText>
         </TouchableOpacity>
       </FFModal>
+
+      <FFModal
+        visible={isShowStatusModal}
+        onClose={() => setIsShowStatusModal(false)}
+      >
+        <View style={styles.statusModalContent}>
+          <FFText style={{ textAlign: "center" }}>{statusMessage}</FFText>
+          <TouchableOpacity
+            style={styles.statusModalButton}
+            onPress={() => setIsShowStatusModal(false)}
+          >
+            <FFText style={styles.statusModalButtonText}>OK</FFText>
+          </TouchableOpacity>
+        </View>
+      </FFModal>
+
       {/* Category Tabs */}
       <View style={styles.tabContainer}>
         {["Menu Item", "Recommended Menu Item"]?.map((tab) => (
@@ -321,6 +347,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing.veryLarge,
     borderRadius: 8,
     paddingVertical: 12,
+  },
+  statusModalContent: {
+    padding: spacing.md,
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  statusModalButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    marginTop: spacing.sm,
+  },
+  statusModalButtonText: {
+    color: colors.white,
+    textAlign: "center",
   },
 });
 

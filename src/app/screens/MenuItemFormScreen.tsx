@@ -27,6 +27,7 @@ import * as ImagePicker from "expo-image-picker";
 import FFEditableBlock, {
   MenuItemVariant,
 } from "@/src/components/FFEditableBlock";
+import FFModal from "@/src/components/FFModal";
 
 type MenuItemFormNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -82,6 +83,8 @@ const MenuItemFormScreen = () => {
   const [variants, setVariants] = useState<MenuItemVariant[]>([
     { variant: "", description: "", price: "" },
   ]);
+  const [isShowStatusModal, setIsShowStatusModal] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
 
   useEffect(() => {
     fetchFoodCategories();
@@ -173,15 +176,16 @@ const MenuItemFormScreen = () => {
       !variants[0].variant ||
       !variants[0].price
     ) {
-      Alert.alert(
-        "Error",
+      setStatusMessage(
         "Please fill in all required fields including at least one variant"
       );
+      setIsShowStatusModal(true);
       return;
     }
 
     if (!globalState.restaurant_id) {
-      Alert.alert("Error", "Restaurant ID not found");
+      setStatusMessage("Restaurant ID not found");
+      setIsShowStatusModal(true);
       return;
     }
 
@@ -241,23 +245,25 @@ const MenuItemFormScreen = () => {
           }
         }
 
-        Alert.alert(
-          "Success",
+        setStatusMessage(
           `Menu item ${menuItemId ? "updated" : "created"} successfully`
         );
-        navigation.goBack();
+        setIsShowStatusModal(true);
+        setTimeout(() => {
+          navigation.goBack();
+        }, 1500);
       } else {
-        Alert.alert(
-          "Error",
+        setStatusMessage(
           response.data.EM ||
             `Failed to ${menuItemId ? "update" : "create"} menu item`
         );
+        setIsShowStatusModal(true);
       }
     } catch (error) {
-      Alert.alert(
-        "Error",
+      setStatusMessage(
         `Failed to ${menuItemId ? "update" : "create"} menu item`
       );
+      setIsShowStatusModal(true);
     } finally {
       setIsLoading(false);
     }
@@ -266,38 +272,32 @@ const MenuItemFormScreen = () => {
   const handleDelete = async () => {
     if (!menuItemId) return;
 
-    Alert.alert(
-      "Confirm Delete",
-      "Are you sure you want to delete this menu item?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              const response = await axiosInstance.delete(
-                `/restaurants/menu-items/${menuItemId}`
-              );
-              if (response.data.EC === 0) {
-                Alert.alert("Success", "Menu item deleted successfully");
-                navigation.goBack();
-              } else {
-                Alert.alert(
-                  "Error",
-                  response.data.EM || "Failed to delete menu item"
-                );
-              }
-            } catch (error) {
-              Alert.alert("Error", "Failed to delete menu item");
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    setStatusMessage("Are you sure you want to delete this menu item?");
+    setIsShowStatusModal(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axiosInstance.delete(
+        `/restaurants/menu-items/${menuItemId}`
+      );
+      if (response.data.EC === 0) {
+        setStatusMessage("Menu item deleted successfully");
+        setIsShowStatusModal(true);
+        setTimeout(() => {
+          navigation.goBack();
+        }, 1500);
+      } else {
+        setStatusMessage(response.data.EM || "Failed to delete menu item");
+        setIsShowStatusModal(true);
+      }
+    } catch (error) {
+      setStatusMessage("Failed to delete menu item");
+      setIsShowStatusModal(true);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isLoading) {
@@ -306,6 +306,39 @@ const MenuItemFormScreen = () => {
 
   return (
     <FFView style={styles.container}>
+      <FFModal
+        visible={isShowStatusModal}
+        onClose={() => setIsShowStatusModal(false)}
+      >
+        <View style={styles.statusModalContent}>
+          <FFText style={{ textAlign: "center" }}>{statusMessage}</FFText>
+          {statusMessage ===
+          "Are you sure you want to delete this menu item?" ? (
+            <View style={styles.deleteModalButtons}>
+              <TouchableOpacity
+                style={[styles.statusModalButton, styles.cancelButton]}
+                onPress={() => setIsShowStatusModal(false)}
+              >
+                <FFText style={styles.statusModalButtonText}>Cancel</FFText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.statusModalButton, styles.deleteButton]}
+                onPress={confirmDelete}
+              >
+                <FFText style={styles.statusModalButtonText}>Delete</FFText>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.statusModalButton}
+              onPress={() => setIsShowStatusModal(false)}
+            >
+              <FFText style={styles.statusModalButtonText}>OK</FFText>
+            </TouchableOpacity>
+          )}
+        </View>
+      </FFModal>
+
       <FFScreenTopSection
         navigation={navigation}
         title={menuItemId ? "Edit Menu Item" : "Add Menu Item"}
@@ -393,7 +426,7 @@ const MenuItemFormScreen = () => {
           {menuItemId && (
             <FFButton
               variant="outline"
-              style={styles.deleteButton}
+              style={styles.deleteActionButton}
               onPress={handleDelete}
             >
               Delete Menu Item
@@ -444,8 +477,36 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: spacing.lg,
   },
-  deleteButton: {
+  deleteActionButton: {
     marginTop: spacing.md,
+  },
+  statusModalContent: {
+    padding: spacing.md,
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  statusModalButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    marginTop: spacing.sm,
+    minWidth: 100,
+  },
+  statusModalButtonText: {
+    color: colors.white,
+    textAlign: "center",
+  },
+  deleteModalButtons: {
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "center",
+  },
+  cancelButton: {
+    backgroundColor: colors.textSecondary,
+  },
+  deleteButton: {
+    backgroundColor: colors.error,
   },
 });
 
