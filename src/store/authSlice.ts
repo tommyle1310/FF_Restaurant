@@ -99,12 +99,14 @@ interface AuthState {
   avatar: Avatar | null;
   images_gallery: any[] | null;
   status: Status | null;
-  promotions: Promotion[] | null; // Thêm promotions
+  promotions: Promotion[] | null;
   ratings: object | null;
   specialize_in: SpecializeIn[] | null;
   opening_hours: OpeningHours | null;
   iat: number | null;
   exp: number | null;
+  fWallet_id: string | null;
+  fWallet_balance: string | null;
 }
 
 // Initial state
@@ -130,12 +132,14 @@ const initialState: AuthState = {
   avatar: null,
   images_gallery: null,
   status: null,
-  promotions: null, // Khởi tạo promotions
+  promotions: null,
   ratings: null,
   specialize_in: null,
   opening_hours: null,
   iat: null,
   exp: null,
+  fWallet_id: null,
+  fWallet_balance: null,
 };
 
 // Load token từ AsyncStorage
@@ -164,12 +168,14 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
       "avatar",
       "images_gallery",
       "status",
-      "promotions", // Thêm promotions
+      "promotions",
       "ratings",
       "specialize_in",
       "opening_hours",
       "iat",
       "exp",
+      "fWallet_id",
+      "fWallet_balance",
     ];
     const values = await Promise.all(
       keys.map((key) => AsyncStorage.getItem(key))
@@ -206,7 +212,7 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
         ? JSON.parse(result.images_gallery)
         : null,
       status: result.status ? JSON.parse(result.status) : null,
-      promotions: result.promotions ? JSON.parse(result.promotions) : null, // Parse promotions
+      promotions: result.promotions ? JSON.parse(result.promotions) : null,
       ratings: result.ratings ? JSON.parse(result.ratings) : null,
       specialize_in: result.specialize_in
         ? JSON.parse(result.specialize_in)
@@ -216,6 +222,8 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
         : null,
       iat: result.iat ? Number(result.iat) : null,
       exp: result.exp ? Number(result.exp) : null,
+      fWallet_id: result.fWallet_id || null,
+      fWallet_balance: result.fWallet_balance || null,
     };
   }
 );
@@ -246,12 +254,14 @@ export const saveTokenToAsyncStorage = createAsyncThunk(
       ["avatar", JSON.stringify(data.avatar || null)],
       ["images_gallery", JSON.stringify(data.images_gallery || null)],
       ["status", JSON.stringify(data.status || null)],
-      ["promotions", JSON.stringify(data.promotions || null)], // Stringify promotions
+      ["promotions", JSON.stringify(data.promotions || null)],
       ["ratings", JSON.stringify(data.ratings || null)],
       ["specialize_in", JSON.stringify(data.specialize_in || [])],
       ["opening_hours", JSON.stringify(data.opening_hours || null)],
       ["iat", data.iat?.toString() || ""],
       ["exp", data.exp?.toString() || ""],
+      ["fWallet_id", data.fWallet_id || ""],
+      ["fWallet_balance", data.fWallet_balance || ""],
     ];
     await Promise.all(
       entries.map(([key, value]) => AsyncStorage.setItem(key, value))
@@ -286,12 +296,14 @@ export const logout = createAsyncThunk(
       "avatar",
       "images_gallery",
       "status",
-      "promotions", // Thêm promotions
+      "promotions",
       "ratings",
       "specialize_in",
       "opening_hours",
       "iat",
       "exp",
+      "fWallet_id",
+      "fWallet_balance",
     ];
     await Promise.all(keys.map((key) => AsyncStorage.removeItem(key)));
     dispatch(clearAuthState());

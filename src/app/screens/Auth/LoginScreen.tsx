@@ -81,6 +81,8 @@ const Login = () => {
             opening_hours: userData.opening_hours || null,
             iat: userData.iat || null,
             exp: userData.exp || null,
+            fWallet_balance: userData.fWallet_balance || null,
+            fWallet_id: userData.fWallet_id || null,
           })
         );
 

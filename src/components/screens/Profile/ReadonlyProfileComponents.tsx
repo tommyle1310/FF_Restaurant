@@ -1,10 +1,11 @@
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import React from "react";
 import FFAvatar from "../../FFAvatar";
 import FFText from "../../FFText";
 import IconFontAwesome5 from "react-native-vector-icons/FontAwesome5";
 import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
+import { colors, spacing } from "@/src/theme";
 
 const ReadonlyProfileComponents = ({
   toggleStatus,
@@ -14,41 +15,27 @@ const ReadonlyProfileComponents = ({
   const { user_id, avatar } = useSelector((state: RootState) => state.auth);
 
   return (
-    <View
-      style={{ elevation: 10 }}
-      className="bg-white rounded-xl border gap-2 border-gray-200 p-4"
-    >
-      <View className="flex-row justify-between gap-4">
+    <View style={styles.container}>
+      <View style={styles.header}>
         <FFAvatar avatar={avatar?.url} />
-        <View className="flex-1">
+        <View style={styles.userInfo}>
           <FFText fontSize="lg">Tommy Teo</FFText>
-          <FFText fontWeight="400" style={{ color: "#aaa" }}>
+          <FFText fontWeight="400" style={styles.emailText}>
             abc@gmail.com
           </FFText>
         </View>
-        <TouchableOpacity
-          onPress={toggleStatus}
-          style={{
-            backgroundColor: "#63c550",
-            padding: 8, // You can adjust the padding as needed
-            borderRadius: 50, // To make it round
-            alignSelf: "flex-start", // Align to the start of the container
-            flexShrink: 0, // Prevent it from shrinking
-            justifyContent: "center", // Vertically center the content
-            alignItems: "center", // Horizontally center the content
-          }}
-        >
-          <IconFontAwesome5 name="user-edit" size={10} color="#eee" />
+        <TouchableOpacity onPress={toggleStatus} style={styles.editButton}>
+          <IconFontAwesome5 name="user-edit" size={10} color={colors.white} />
         </TouchableOpacity>
       </View>
-      <View className="flex-row gap-2 items-center">
-        <FFText style={{ color: "#aaa" }} fontWeight="400">
+      <View style={styles.infoRow}>
+        <FFText style={styles.labelText} fontWeight="400">
           Phone Number:
         </FFText>
         <FFText fontWeight="400">(+84) 707171164</FFText>
       </View>
-      <View className="flex-row gap-2 items-center">
-        <FFText style={{ color: "#aaa" }} fontWeight="400">
+      <View style={styles.infoRow}>
+        <FFText style={styles.labelText} fontWeight="400">
           Date Joined:
         </FFText>
         <FFText fontWeight="400">24/01/2025</FFText>
@@ -56,5 +43,45 @@ const ReadonlyProfileComponents = ({
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    elevation: 10,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  emailText: {
+    color: colors.textSecondary,
+  },
+  editButton: {
+    backgroundColor: colors.primary,
+    padding: spacing.sm,
+    borderRadius: 25,
+    alignSelf: "flex-start",
+    flexShrink: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  infoRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+  },
+  labelText: {
+    color: colors.textSecondary,
+  },
+});
 
 export default ReadonlyProfileComponents;

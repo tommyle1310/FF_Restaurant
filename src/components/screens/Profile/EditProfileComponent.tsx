@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
 import React, { useEffect, useState } from "react";
 import FFAvatar from "../../FFAvatar";
 import FFInputControl from "../../FFInputControl";
@@ -7,7 +7,7 @@ import { useDispatch, useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import * as ImagePicker from "expo-image-picker";
 import useUploadImage from "@/src/hooks/useUploadImage";
-import { setAvatar, setAvatarInAsyncStorage } from "@/src/store/authSlice";
+import { colors, spacing } from "@/src/theme";
 
 const EditProfileComponent = ({
   firstName,
@@ -50,19 +50,17 @@ const EditProfileComponent = ({
       uploadImage(asset.uri);
     }
   };
+
   useEffect(() => {
     if (responseData?.EC === 0) {
-      dispatch(setAvatar(responseData.data.avatar)); // This updates Redux state
-      dispatch(setAvatarInAsyncStorage(responseData.data.avatar)); // This updates AsyncStorage
+      // dispatch(setAvatar(responseData.data.avatar)); // This updates Redux state
+      // dispatch(setAvatarInAsyncStorage(responseData.data.avatar)); // This updates AsyncStorage
     }
   }, [responseData]);
 
   return (
-    <View
-      style={{ elevation: 10 }}
-      className="bg-white rounded-xl border gap-4 border-gray-200 p-4"
-    >
-      <View className="items-center">
+    <View style={styles.container}>
+      <View style={styles.avatarContainer}>
         <TouchableOpacity onPress={selectImage}>
           {imageUri ? (
             <FFAvatar onPress={selectImage} size={80} avatar={imageUri} />
@@ -104,5 +102,20 @@ const EditProfileComponent = ({
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    elevation: 10,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  avatarContainer: {
+    alignItems: "center",
+  },
+});
 
 export default EditProfileComponent;

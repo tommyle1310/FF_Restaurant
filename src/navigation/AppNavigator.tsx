@@ -37,6 +37,15 @@ import { sendPushNotification } from "../utils/functions/pushNotification";
 import { View } from "react-native";
 import socket from "../services/socket";
 import MenuItemFormScreen from "../app/screens/MenuItemFormScreen";
+import { Type_Address } from "../types/Address";
+import PaymentMethodScreen from "../app/screens/PaymentMethodScreen";
+import ChangePasswordScreen from "../app/screens/ChangePasswordScreen";
+import ProfileScreen from "../app/screens/ProfileScreen";
+import AddressListScreen from "../app/screens/AddressListScreen";
+import AddressDetailsScreen from "../app/screens/AddressDetailsScreen";
+import SupportCenterScreen from "../app/screens/SupportCenterScreen";
+import FChatScreen from "../app/screens/FChatScreen";
+import CreateInquiryScreen from "../app/screens/CreateInquiryScreen";
 
 // Define the param lists for the navigators
 export type AuthStackParamList = {
@@ -55,6 +64,14 @@ export type MainStackParamList = {
   Promotions: undefined;
   MenuItemForm: { menuItemId: string } | undefined;
   CustomerFeedback: undefined;
+  FChat: { withUserId?: string; type?: "SUPPORT" | "ORDER"; orderId?: string };
+  SupportCenter: undefined;
+  Profile: undefined;
+  CreateInquiry: undefined;
+  ChangePassword: undefined;
+  AddressList: undefined;
+  PaymentMethod: undefined;
+  AddressDetails?: { addressDetail?: Type_Address; is_create_type?: boolean };
 };
 
 export type BottomTabParamList = {
@@ -202,8 +219,48 @@ const MainStackScreen = () => {
         />
         <MainStack.Screen
           options={{ headerShown: false }}
+          name="CreateInquiry"
+          component={CreateInquiryScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
           name="CustomerFeedback"
           component={CustomerFeedback}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="PaymentMethod"
+          component={PaymentMethodScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="ChangePassword"
+          component={ChangePasswordScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="Profile"
+          component={ProfileScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="AddressList"
+          component={AddressListScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="AddressDetails"
+          component={AddressDetailsScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="SupportCenter"
+          component={SupportCenterScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="FChat"
+          component={FChatScreen}
         />
       </MainStack.Navigator>
       {/* FFToast logic is commented for now */}

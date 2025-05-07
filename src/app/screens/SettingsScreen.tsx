@@ -50,7 +50,7 @@ const SettingsScreen = () => {
 
           {/* Main Content Section */}
           <View style={styles.contentWrapper}>
-            <FFView colorDark="#000" style={styles.contentContainer}>
+            <FFView colorDark="#222" style={styles.contentContainer}>
               {/* Profile Section */}
               <View style={styles.profileSection}>
                 <FFAvatar size={40} avatar={avatar?.url} />
@@ -96,8 +96,7 @@ const SettingsScreen = () => {
                 <FFButton
                   onPress={() => {
                     dispatch(logout());
-                    // dispatch(clearOrderTracking()); // Xóa state
-                    // dispatch(clearOrderTrackingFromAsyncStorage()); // Xóa AsyncStorage
+                    // dispatch(clear()); // Xóa AsyncStorage
                     navigation.navigate("Login");
                   }}
                   className="w-full"

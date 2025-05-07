@@ -1,4 +1,5 @@
 import FFToggle from "@/src/components/FFToggle";
+import { useTheme } from "@/src/hooks/useTheme";
 import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -11,35 +12,60 @@ type SettingNavigationProp = StackNavigationProp<
 
 const useSettingData = () => {
   const navigation = useNavigation<SettingNavigationProp>();
+  const { theme } = useTheme();
 
   const settingsData = {
     "Account Settings": [
       {
         title: "Edit Profile",
-        rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
+        rightIcon: (
+          <IconIonicons
+            name="chevron-forward-outline"
+            size={20}
+            style={{ color: theme === "dark" ? "#eeee" : "#222" }}
+          />
+        ),
         onPress: () => {
-          // navigation.navigate("Profile");
+          navigation.navigate("Profile");
         },
       },
       {
         title: "Change Password",
-        rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
+        rightIcon: (
+          <IconIonicons
+            name="chevron-forward-outline"
+            size={20}
+            style={{ color: theme === "dark" ? "#eeee" : "#222" }}
+          />
+        ),
         onPress: () => {
-          // navigation.navigate("ChangePassword");
+          navigation.navigate("ChangePassword");
         },
       },
       {
         title: "Address",
-        rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
+        rightIcon: (
+          <IconIonicons
+            name="chevron-forward-outline"
+            size={20}
+            style={{ color: theme === "dark" ? "#eeee" : "#222" }}
+          />
+        ),
         onPress: () => {
-          // navigation.navigate("AddressList");
+          navigation.navigate("AddressList");
         },
       },
       {
         title: "Payment Method",
-        rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
+        rightIcon: (
+          <IconIonicons
+            name="chevron-forward-outline"
+            size={20}
+            style={{ color: theme === "dark" ? "#eeee" : "#222" }}
+          />
+        ),
         onPress: () => {
-          // navigation.navigate("PaymentMethod");
+          navigation.navigate("PaymentMethod");
         },
       },
       {
@@ -68,21 +94,39 @@ const useSettingData = () => {
     More: [
       {
         title: "Support Center",
-        rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
+        rightIcon: (
+          <IconIonicons
+            name="chevron-forward-outline"
+            size={20}
+            style={{ color: theme === "dark" ? "#eeee" : "#222" }}
+          />
+        ),
         onPress: () => {
-          // navigation.navigate("SupportCenter");
+          navigation.navigate("SupportCenter");
         },
       },
       {
         title: "About Us",
-        rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
+        rightIcon: (
+          <IconIonicons
+            name="chevron-forward-outline"
+            size={20}
+            style={{ color: theme === "dark" ? "#eeee" : "#222" }}
+          />
+        ),
         onPress: () => {
           // Add the navigation logic for About Us
         },
       },
       {
         title: "Privacy Policy",
-        rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
+        rightIcon: (
+          <IconIonicons
+            name="chevron-forward-outline"
+            size={20}
+            style={{ color: theme === "dark" ? "#eeee" : "#222" }}
+          />
+        ),
         onPress: () => {
           // Add the navigation logic for Privacy Policy
         },
