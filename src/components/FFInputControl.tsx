@@ -7,6 +7,7 @@ import {
   Pressable,
   StyleProp,
   ViewStyle,
+  TextStyle,
 } from "react-native";
 import React, { useState, useRef } from "react";
 import IconIonicons from "react-native-vector-icons/Ionicons";
@@ -27,6 +28,8 @@ interface FFInputControlProps<T extends string | number> {
   readonly?: boolean;
   isNumeric?: boolean; // Thêm prop để ép kiểu number (optional)
   style?: StyleProp<ViewStyle>; // Thêm prop style cho container chính
+  labelStyle?: StyleProp<TextStyle>; // New prop for label styling
+  inputStyle?: StyleProp<ViewStyle>; // New prop for input container styling
   colorDark?: string;
   colorLight?: string;
   borderColorDark?: string;
@@ -46,6 +49,8 @@ const FFInputControl = <T extends string | number>({
   readonly = false,
   isNumeric = false,
   style, // Thêm style vào destructuring
+  labelStyle, // Add to destructuring
+  inputStyle, // Add to destructuring
   colorDark = "#333",
   colorLight = "#fff",
   borderColorDark = "#666",
@@ -98,15 +103,31 @@ const FFInputControl = <T extends string | number>({
   const displayValue =
     value === undefined || value === null ? "" : String(value);
 
+  const combinedLabelStyle = StyleSheet.flatten([
+    styles.inputLabel,
+    labelStyle,
+  ]) as TextStyle;
+
+  const combinedInputStyle = StyleSheet.flatten([
+    styles.inputFieldContainer,
+    {
+      borderColor,
+      backgroundColor: disabled ? disabledBackgroundColor : backgroundColor,
+    },
+    inputStyle,
+  ]) as ViewStyle;
+
+  const containerStyle = StyleSheet.flatten([style]) as ViewStyle;
+
   // Nếu readonly, dùng FFText
   if (readonly) {
     return (
-      <View style={style}>
+      <View style={containerStyle}>
         <FFText
           fontSize="sm"
           colorDark={textColorDark}
           colorLight={textColorLight}
-          style={styles.inputLabel}
+          style={combinedLabelStyle}
         >
           {label}
         </FFText>
@@ -138,27 +159,17 @@ const FFInputControl = <T extends string | number>({
     <Pressable
       onPress={handleInputContainerPress}
       disabled={disabled}
-      style={style} // Áp dụng style cho container chính
+      style={containerStyle}
     >
       <FFText
         fontSize="sm"
         colorDark={textColorDark}
         colorLight={textColorLight}
-        style={styles.inputLabel}
+        style={combinedLabelStyle}
       >
         {label}
       </FFText>
-      <View
-        style={[
-          styles.inputFieldContainer,
-          {
-            borderColor,
-            backgroundColor: disabled
-              ? disabledBackgroundColor
-              : backgroundColor,
-          },
-        ]}
-      >
+      <View style={combinedInputStyle}>
         <TextInput
           ref={inputRef}
           placeholder={placeholder}

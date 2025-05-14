@@ -1,6 +1,6 @@
 export const IP_ADDRESS = {
   HOME_1: "192.168.1.7",
-  NEAR: "192.168.1.151",
+  NEAR: "192.168.1.76",
 };
 
 export const BACKEND_URL = `http://${IP_ADDRESS.NEAR}:1310`;

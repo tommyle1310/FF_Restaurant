@@ -32,11 +32,18 @@ const Login = () => {
   const dispatch = useDispatch();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const handleLoginSubmit = async (email: string, password: string) => {
+  const handleLoginSubmit = async ({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }) => {
     const requestBody = {
       email: email,
       password: password,
     };
+    console.log("cehck req body", requestBody);
     setIsLoading(true);
     try {
       const response = await axiosInstance.post(

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity, ScrollView } from "react-native";
 import FFText from "./FFText"; // Assuming you have a custom FFText component
 import { useTheme } from "../hooks/useTheme"; // Assuming you have a custom hook for theme
 
@@ -13,11 +13,15 @@ const FFTab: React.FC<TabProps> = ({ tabTitles, tabContent }) => {
   const { theme } = useTheme(); // Assuming theme context/hook
 
   return (
-    <View className="flex-1">
+    <ScrollView style={{ height: 400 }}>
       {/* Tab Headers */}
       <View
         style={{
           overflow: "hidden",
+          flexDirection: "row",
+          width: "100%",
+          alignItems: "center",
+          justifyContent: "center",
           borderTopLeftRadius: activeTab === 0 ? 24 : 16, // Dynamically change border radius for the first tab
           borderTopRightRadius: activeTab === 0 ? 24 : 16, // Dynamically change border radius for the first tab
         }}
@@ -27,6 +31,9 @@ const FFTab: React.FC<TabProps> = ({ tabTitles, tabContent }) => {
           <TouchableOpacity
             key={index}
             onPress={() => setActiveTab(index)}
+            style={{
+              flex: 1,
+            }}
             className={`${
               activeTab === index
                 ? theme === "light"
@@ -60,12 +67,12 @@ const FFTab: React.FC<TabProps> = ({ tabTitles, tabContent }) => {
           height: "90%",
           borderBottomLeftRadius: activeTab === 0 ? 24 : 16, // Dynamically change border radius for the first tab
           borderBottomRightRadius: activeTab === 0 ? 24 : 16, // Dynamically change border radius for the first tab
-          backgroundColor: theme === "light" ? "white" : "black", // Dynamic background color
+          // backgroundColor: theme === "light" ? "black" : "black", // Dynamic background color
         }}
       >
         <View className="flex-1">{tabContent[activeTab]}</View>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
