@@ -4,6 +4,7 @@ import {
   TouchableOpacity,
   View,
   StyleSheet,
+  ScrollView,
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
@@ -133,7 +134,6 @@ const ProfileScreen = () => {
           `/restaurants/${id}/ratings-reviews`
         );
         const { EC, EM, data } = response.data;
-        console.log("check response", response.data);
         if (EC === 0) {
           setReviewsData(data);
         } else {
@@ -153,7 +153,7 @@ const ProfileScreen = () => {
   return (
     <FFSafeAreaView>
       <FFScreenTopSection title="My Profile" navigation={navigation} />
-      <View style={styles.container}>
+      <ScrollView style={styles.container}>
         {screenStatus === "READONLY" ? (
           <>
             <ReadonlyProfileComponents
@@ -270,18 +270,9 @@ const ProfileScreen = () => {
             </View>
           </>
         ) : (
-          <EditProfileComponent
-            email={email}
-            firstName={firstName}
-            lastName={lastName}
-            phone={phone}
-            setEmail={setEmail}
-            setFirstName={setFirstName}
-            setLastName={setLastName}
-            setPhone={setPhone}
-          />
+          <EditProfileComponent />
         )}
-      </View>
+      </ScrollView>
       <FFModal
         visible={showErrorModal}
         onClose={() => setShowErrorModal(false)}

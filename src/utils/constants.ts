@@ -3,7 +3,7 @@ export const IP_ADDRESS = {
   NEAR: "192.168.1.76",
 };
 
-export const BACKEND_URL = `http://${IP_ADDRESS.NEAR}:1310`;
+export const BACKEND_URL = `http://${IP_ADDRESS.HOME_1}:1310`;
 export const DELIVERY_FEE = 3;
 export const SERVICE_FEE = 1;
 export const MAX_DISTANCE_FROM_SEARCH_RADIUS = 1000;

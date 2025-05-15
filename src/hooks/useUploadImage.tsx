@@ -39,7 +39,7 @@ const useUploadImage = (
         });
 
         const { EC, EM, data } = response.data;
-
+        console.log("check what the fuck", EC, EM, data);
         if (EC === 0) {
           console.log("uploaded successfully");
 
