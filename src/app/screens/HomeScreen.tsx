@@ -3,14 +3,22 @@ import { View, TouchableOpacity, ScrollView, StatusBar } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
+import axiosInstance from "@/src/utils/axiosConfig";
 
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import FFText from "@/src/components/FFText";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { MainStackParamList } from "@/src/navigation/AppNavigator";
-import { useSelector } from "@/src/store/types";
+import { useSelector, useDispatch } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import FFAvatar from "@/src/components/FFAvatar";
+import { colors } from "@/src/theme";
+import {
+  toggleAvailability,
+  setAuthState,
+  saveTokenToAsyncStorage,
+} from "@/src/store/authSlice";
+import FFModal from "@/src/components/FFModal";
 
 type HomeNavigationProps = StackNavigationProp<
   MainStackParamList,
@@ -19,17 +27,41 @@ type HomeNavigationProps = StackNavigationProp<
 
 const HomeScreen = () => {
   const navigation = useNavigation<HomeNavigationProps>();
+  const dispatch = useDispatch();
 
-  const { address, restaurant_name, avatar, status } = useSelector(
-    (state: RootState) => state.auth
-  );
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
 
-  // Function to return a greeting based on current hour.
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
+  const { address, restaurant_name, avatar, status, restaurant_id } =
+    useSelector((state: RootState) => state.auth);
+
+  const handleToggleAvailability = async () => {
+    try {
+      const response = await axiosInstance.patch(
+        `/restaurants/${restaurant_id}/availability`,
+        {
+          is_open: !status?.is_open,
+        }
+      );
+
+      if (response.data.EC === 0) {
+        const newAuthState = {
+          ...response.data.data,
+        };
+
+        // Update both Redux and AsyncStorage
+        await Promise.all([
+          dispatch(setAuthState(newAuthState)),
+          dispatch(saveTokenToAsyncStorage(newAuthState)),
+        ]);
+      } else {
+        setModalMessage("Status can't be set at the moment");
+        setIsModalVisible(true);
+      }
+    } catch (error) {
+      setModalMessage("Status can't be set at the moment");
+      setIsModalVisible(true);
+    }
   };
 
   // Daily stats section data
@@ -41,20 +73,22 @@ const HomeScreen = () => {
 
   // Menu grid items
   const menuItems = [
-    { id: 1, icon: "bag", label: "Đơn hàng" },
-    { id: 2, icon: "time", label: "Lịch sử" },
-    { id: 3, icon: "document-text", label: "Thực đơn" },
-    { id: 4, icon: "star", label: "Đánh giá" },
     {
-      id: 5,
+      id: 1,
+      icon: "pie-chart",
+      label: "Analytics",
+      onPress: () => navigation.navigate("Statistics"),
+    },
+    { id: 2, icon: "time", label: "History" },
+    { id: 3, icon: "star", label: "Reviews" },
+    {
+      id: 4,
       icon: "pricetag",
-      label: "Khuyến mãi",
+      label: "Promotions",
       onPress: () => navigation.navigate("Promotions"),
     },
-    { id: 6, icon: "wallet", label: "Ví" },
-    { id: 7, icon: "bulb", label: "Marketing" },
-    { id: 8, icon: "megaphone", label: "Quảng cáo" },
-    { id: 11, icon: "pie-chart", label: "Báo cáo" },
+    { id: 5, icon: "wallet", label: "My Wallet" },
+    { id: 6, icon: "bulb", label: "Marketing" },
   ];
 
   return (
@@ -99,7 +133,8 @@ const HomeScreen = () => {
             alignItems: "center",
           }}
         >
-          <View
+          <TouchableOpacity
+            onPress={handleToggleAvailability}
             style={{
               backgroundColor: status?.is_open ? "#dcfce7" : "#fee2e2",
               paddingHorizontal: 12,
@@ -126,7 +161,7 @@ const HomeScreen = () => {
             >
               {status?.is_open ? "Opening" : "Closed"}
             </FFText>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -156,7 +191,7 @@ const HomeScreen = () => {
                   marginRight: 12,
                 }}
               >
-                <Ionicons name="stats-chart" size={20} color="#f97316" />
+                <Ionicons name="stats-chart" size={20} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <FFText style={{ color: "#eee", fontSize: 13 }}>
@@ -196,7 +231,11 @@ const HomeScreen = () => {
                   marginRight: 12,
                 }}
               >
-                <Ionicons name="document-text" size={20} color="#f97316" />
+                <Ionicons
+                  name="document-text"
+                  size={20}
+                  color={colors.primary}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <FFText style={{ color: "#eee" }}>Số đơn/ngày</FFText>
@@ -233,7 +272,7 @@ const HomeScreen = () => {
                   marginRight: 12,
                 }}
               >
-                <Ionicons name="restaurant" size={20} color="#f97316" />
+                <Ionicons name="restaurant" size={20} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <FFText style={{ color: "#eee" }}>Món bán chạy</FFText>
@@ -289,7 +328,11 @@ const HomeScreen = () => {
                     marginBottom: 8,
                   }}
                 >
-                  <Ionicons name={item.icon as any} size={24} color="#f97316" />
+                  <Ionicons
+                    name={item.icon as any}
+                    size={24}
+                    color={colors.primary}
+                  />
                 </View>
                 <FFText
                   style={{
@@ -306,6 +349,17 @@ const HomeScreen = () => {
           </View>
         </View>
       </ScrollView>
+
+      <FFModal
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+      >
+        <View style={{ padding: 20, alignItems: "center" }}>
+          <FFText style={{ fontSize: 16, textAlign: "center" }}>
+            {modalMessage}
+          </FFText>
+        </View>
+      </FFModal>
     </FFSafeAreaView>
   );
 };

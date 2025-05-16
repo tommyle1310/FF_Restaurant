@@ -335,9 +335,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   itemActions: {
-    flexDirection: "row",
+    // flexDirection: "colu",
     alignItems: "center",
-    gap: 8,
+    gap: spacing.md,
   },
   moreButton: {
     padding: 4,

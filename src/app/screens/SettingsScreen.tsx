@@ -25,7 +25,7 @@ type LogoutSreenNavigationProp = StackNavigationProp<
 const SettingsScreen = () => {
   const navigation = useNavigation<LogoutSreenNavigationProp>();
   const dispatch = useDispatch();
-  const { user_id, address, avatar, email } = useSelector(
+  const {  avatar, email } = useSelector(
     (state: RootState) => state.auth
   );
   const { "Account Settings": data_account_setting, More: data_more } =

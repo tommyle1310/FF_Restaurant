@@ -41,11 +41,11 @@ import { Type_Address } from "../types/Address";
 import PaymentMethodScreen from "../app/screens/PaymentMethodScreen";
 import ChangePasswordScreen from "../app/screens/ChangePasswordScreen";
 import ProfileScreen from "../app/screens/ProfileScreen";
-import AddressListScreen from "../app/screens/AddressListScreen";
 import AddressDetailsScreen from "../app/screens/AddressDetailsScreen";
 import SupportCenterScreen from "../app/screens/SupportCenterScreen";
 import FChatScreen from "../app/screens/FChatScreen";
 import CreateInquiryScreen from "../app/screens/CreateInquiryScreen";
+import StatisticsScreen from "../app/screens/StatisticsScreen";
 
 // Define the param lists for the navigators
 export type AuthStackParamList = {
@@ -69,9 +69,9 @@ export type MainStackParamList = {
   Profile: undefined;
   CreateInquiry: undefined;
   ChangePassword: undefined;
-  AddressList: undefined;
   PaymentMethod: undefined;
   AddressDetails?: { addressDetail?: Type_Address; is_create_type?: boolean };
+  Statistics: undefined
 };
 
 export type BottomTabParamList = {
@@ -224,6 +224,11 @@ const MainStackScreen = () => {
         />
         <MainStack.Screen
           options={{ headerShown: false }}
+          name="Statistics"
+          component={StatisticsScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
           name="CustomerFeedback"
           component={CustomerFeedback}
         />
@@ -241,11 +246,6 @@ const MainStackScreen = () => {
           options={{ headerShown: false }}
           name="Profile"
           component={ProfileScreen}
-        />
-        <MainStack.Screen
-          options={{ headerShown: false }}
-          name="AddressList"
-          component={AddressListScreen}
         />
         <MainStack.Screen
           options={{ headerShown: false }}

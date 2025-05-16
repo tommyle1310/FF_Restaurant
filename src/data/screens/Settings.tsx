@@ -4,6 +4,9 @@ import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import IconIonicons from "react-native-vector-icons/Ionicons";
+import { useSelector } from "@/src/store/types";
+import { RootState } from "@/src/store/store";
+import { Type_Address } from "@/src/types/Address";
 
 type SettingNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -13,6 +16,7 @@ type SettingNavigationProp = StackNavigationProp<
 const useSettingData = () => {
   const navigation = useNavigation<SettingNavigationProp>();
   const { theme } = useTheme();
+  const { address } = useSelector((state: RootState) => state.auth);
 
   const settingsData = {
     "Account Settings": [
@@ -52,7 +56,10 @@ const useSettingData = () => {
           />
         ),
         onPress: () => {
-          navigation.navigate("AddressList");
+          navigation.navigate("AddressDetails", {
+            is_create_type: !address,
+            addressDetail: address as unknown as Type_Address 
+          });
         },
       },
       {

@@ -16,7 +16,7 @@ import FFInputControl from "@/src/components/FFInputControl";
 import FFText from "@/src/components/FFText";
 import FFButton from "@/src/components/FFButton";
 import { CountryPicker } from "react-native-country-codes-picker";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
 import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import { Type_Address } from "@/src/types/Address";
 import axiosInstance from "@/src/utils/axiosConfig";
@@ -25,11 +25,17 @@ import { useDispatch, useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import FFToggle from "@/src/components/FFToggle";
 import { spacing } from "@/src/theme";
+import { setAuthState, saveTokenToAsyncStorage } from "@/src/store/authSlice";
+import FFSpinner from "@/src/components/FFSpinner";
+import { StackNavigationProp } from "@react-navigation/stack";
 
 type AddressDetailRouteProp = RouteProp<MainStackParamList, "AddressDetails">;
+type AddressDetailNavigationProp = StackNavigationProp<MainStackParamList>;
 
 const AddressDetailsScreen = () => {
   const dispatch = useDispatch();
+  const navigation = useNavigation<AddressDetailNavigationProp>();
+  const [isLoading, setIsLoading] = useState(false);
   const [isShowSlideUpModal, setIsShowSlideUpModal] = useState(false);
   const [isShowModalSuccess, setIsShowModalSuccess] = useState(false);
   const [isShowCountryPicker, setIsShowCountryPicker] = useState(false);
@@ -44,22 +50,22 @@ const AddressDetailsScreen = () => {
     lat: number;
     lng: number;
   } | null>(null);
-  const { address, id } = useSelector((state: RootState) => state.auth);
+  const { address, id, restaurant_id } = useSelector((state: RootState) => state.auth);
 
   const route = useRoute<AddressDetailRouteProp>();
-
   const addressDetail = route.params?.addressDetail;
   const is_create_type = route.params?.is_create_type;
 
   useEffect(() => {
     if (addressDetail && !is_create_type) {
-      const { id, city, is_default, location, nationality, street, title } =
-        addressDetail;
+      const { id, city, is_default, location, nationality, street, title, postal_code } = addressDetail;
       setAddressTitle(title);
       setCity(city);
       setNationality(nationality);
       setStreet(street);
       setSelectedLocation(location);
+      setPostalCode(postal_code?.toString() || "70000");
+      setIsDefaultAddress(is_default || false);
     }
   }, [addressDetail, is_create_type]);
 
@@ -69,74 +75,105 @@ const AddressDetailsScreen = () => {
     setIsShowCountryPicker(false);
   };
 
-  // const handleSubmit = async () => {
-  //   let requestBody = {
-  //     city,
-  //     street,
-  //     nationality,
-  //     is_default: isDefaultAddress,
-  //     created_at: Math.floor(Date.now() / 1000),
-  //     updated_at: Math.floor(Date.now() / 1000),
-  //     title: addressTitle,
-  //     postal_code: +postalCode,
-  //     location: selectedLocation,
-  //   } as Type_Address & { created_at: number; updated_at: number };
+  const handleSubmit = async () => {
+    if (!selectedLocation) {
+      setModalMessage("Please select a location on the map");
+      setIsShowModalSuccess(true);
+      return;
+    }
 
-  //   let response: { data: { EC: number; EM: string; data: any } };
+    setIsLoading(true);
+    try {
+      const addressData = {
+        street,
+        city,
+        nationality,
+        is_default: isDefaultAddress,
+        created_at: Math.floor(Date.now() / 1000),
+        updated_at: Math.floor(Date.now() / 1000),
+        postal_code: +postalCode,
+        location: {
+          lng: selectedLocation.lng,
+          lat: selectedLocation.lat
+        },
+        title: addressTitle,
+      };
+      console.log('cehck adres data', addressData, 'adre detail',addressDetail)
+      let addressResponse;
+      if (is_create_type) {
+        // Create new address
+        addressResponse = await axiosInstance.post('/address_books', addressData);
+      } else {
+        // Update existing address
+        addressResponse = await axiosInstance.patch(`/address_books/${addressDetail?.id}`, addressData);
+      }
 
-  //   try {
-  //     if (is_create_type) {
-  //       response = await axiosInstance.post(
-  //         `/customers/address/${id}`,
-  //         requestBody,
-  //         {
-  //           validateStatus: () => true,
-  //         }
-  //       );
-  //       if (response.data.EC === 0) {
-  //         dispatch(addAddress(response.data.data));
-  //         dispatch(addAddressInAsyncStorage(response.data.data));
-  //       }
-  //     } else {
-  //       response = await axiosInstance.patch(
-  //         `/address_books/${addressDetail?.id}`,
-  //         requestBody,
-  //         {
-  //           validateStatus: () => true,
-  //         }
-  //       );
-  //       if (response.data.EC === 0) {
-  //         dispatch(updateSingleAddress(response.data.data));
-  //       }
-  //     }
+      console.log('cehck addre respo', addressResponse.data)
+      if (addressResponse.data.EC === 0) {
+        // Update restaurant with new address
+        const restaurantResponse = await axiosInstance.patch(`/restaurants/${restaurant_id}`, {
+          address_id: addressResponse.data.data.id
+        });
 
-  //     const { EC, EM } = response.data;
-  //     if (EC === 0) {
-  //       setIsShowSlideUpModal(false);
-  //       setIsShowModalSuccess(true);
+        console.log('cehk res data', restaurantResponse.data)
+        if (restaurantResponse.data.EC === 0) {
+          const newAuthState = {
+            ...restaurantResponse.data.data,
+            address: {
+              ...addressData,
+              id: addressResponse.data.data.id
+            }
+          };
 
-  //       // Reset form if creating new address
-  //       if (is_create_type) {
-  //         setStreet("");
-  //         setCity("");
-  //         setNationality("");
-  //         setAddressTitle("");
-  //         setSelectedLocation(null);
-  //         setPostalCode("70000");
-  //         setIsDefaultAddress(false);
-  //       }
-  //     } else {
-  //       console.log("Error:", EM);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error submitting address:", error);
-  //   }
-  // };
+          // Update both Redux and AsyncStorage
+          await Promise.all([
+            dispatch(setAuthState(newAuthState)),
+            dispatch(saveTokenToAsyncStorage(newAuthState))
+          ]);
+
+          setIsShowSlideUpModal(false);
+          setIsShowModalSuccess(true);
+
+          // Reset form if creating new address
+          if (is_create_type) {
+            setStreet("");
+            setCity("");
+            setNationality("");
+            setAddressTitle("");
+            setSelectedLocation(null);
+            setPostalCode("70000");
+            setIsDefaultAddress(false);
+          }
+
+          // Navigate back to settings after a short delay
+          setTimeout(() => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'BottomTabs' }],
+            });
+          }, 1500);
+        } else {
+          setModalMessage("Failed to update restaurant address");
+          setIsShowModalSuccess(true);
+        }
+      } else {
+        setModalMessage(addressResponse.data.EM || "Failed to save address");
+        setIsShowModalSuccess(true);
+      }
+    } catch (error) {
+      setModalMessage("An error occurred while saving the address");
+      setIsShowModalSuccess(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const [modalMessage, setModalMessage] = useState("");
 
   return (
     <FFSafeAreaView>
       <LocationPicker
-        propsLocation={!is_create_type ? addressDetail?.location : null}
+        propsLocation={!is_create_type ? addressDetail?.location : undefined}
         setPropsLocation={setSelectedLocation}
       />
       <FFButton
@@ -150,9 +187,9 @@ const AddressDetailsScreen = () => {
         visible={isShowModalSuccess}
       >
         <FFText>
-          {is_create_type
+          {modalMessage || (is_create_type
             ? "Successfully added new address"
-            : "Successfully updated address"}
+            : "Successfully updated address")}
         </FFText>
       </FFModal>
       <SlideUpModal
@@ -251,6 +288,7 @@ const AddressDetailsScreen = () => {
           androidWindowSoftInputMode="adjustPan"
         />
       </SlideUpModal>
+      <FFSpinner isVisible={isLoading} isOverlay />
     </FFSafeAreaView>
   );
 };

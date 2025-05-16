@@ -26,6 +26,8 @@ import {
 import { Enum_OrderStatus } from "@/src/types/Orders";
 import moment from "moment";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useSelector } from "@/src/store/types";
+import { RootState } from "@/src/store/store";
 
 type OrderItem = {
   name: string;
@@ -309,10 +311,10 @@ export default function OrderScreen() {
     { key: "completed", title: "Completed" },
     { key: "cancelled", title: "Cancelled" },
   ]);
-
+  const { id } = useSelector((state: RootState) => state.auth);
   const fetchOrders = async () => {
     try {
-      const restaurantId = "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927"; // This should come from your auth context
+      const restaurantId = id || "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927"; // This should come from your auth context
       const response = await axiosInstance.get<ApiResponse>(
         `/restaurants/${restaurantId}/orders?limit=50`
       );
@@ -332,7 +334,7 @@ export default function OrderScreen() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [id]);
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
@@ -551,6 +553,7 @@ const styles = StyleSheet.create<Styles>({
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
+    borderRadius: spacing.md,
     alignItems: "center",
     paddingVertical: spacing.xl,
   },

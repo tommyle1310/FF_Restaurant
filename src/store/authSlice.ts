@@ -318,6 +318,11 @@ const authSlice = createSlice({
       return { ...state, ...action.payload };
     },
     clearAuthState: () => initialState,
+    toggleAvailability: (state) => {
+      if (state.status) {
+        state.status.is_open = !state.status.is_open;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -331,5 +336,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAuthState, clearAuthState } = authSlice.actions;
+export const { setAuthState, clearAuthState, toggleAvailability } = authSlice.actions;
 export default authSlice.reducer;
