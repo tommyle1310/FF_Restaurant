@@ -97,7 +97,6 @@ const Signup = () => {
             setEmail(formData.email);
             setIsOpenVerificationModal(true);
           } else {
-            console.log("check resposne ", response.data);
             setError(EM);
           }
         } else {

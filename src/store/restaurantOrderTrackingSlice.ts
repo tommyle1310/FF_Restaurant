@@ -1,0 +1,160 @@
+// src/store/restaurantOrderTrackingSlice.ts
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { debounce } from "lodash";
+import { Enum_OrderStatus, Type_PushNotification_Order } from "@/src/types/Orders";
+
+// Define the order type based on the push notification structure
+export type OrderTracking = Type_PushNotification_Order;
+
+export interface RestaurantOrderTrackingState {
+  orders: OrderTracking[];
+}
+
+const STORAGE_KEY = "@restaurant_order_tracking_v1";
+
+const initialState: RestaurantOrderTrackingState = {
+  orders: [],
+};
+
+// Helper function to map order to log format
+const mapOrderToLog = (order: OrderTracking) => ({
+  id: order.orderId,
+  status: order.status,
+  total_amount: order.total_amount,
+});
+
+// Debounced function to save to AsyncStorage
+const debouncedSaveToStorage = debounce(async (orders: OrderTracking[]) => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+    console.log("Successfully saved restaurant orders to AsyncStorage:", orders.length);
+  } catch (error) {
+    console.error("Error saving to AsyncStorage:", error);
+  }
+}, 1000);
+
+export const updateAndSaveOrderTracking = createAsyncThunk(
+  "restaurantOrderTracking/updateAndSaveOrderTracking",
+  async (order: OrderTracking, { getState }) => {
+    const state = getState() as {
+      restaurantOrderTracking: RestaurantOrderTrackingState;
+    };
+    const currentOrders = state.restaurantOrderTracking.orders;
+
+    // Log current state
+    console.log("Current restaurant orders before update:", {
+      count: currentOrders.length,
+      orders: currentOrders.map(mapOrderToLog),
+    });
+
+    // Keep all orders, including completed and cancelled
+    const existingIndex = currentOrders.findIndex(
+      (o) => o.orderId === order.orderId
+    );
+
+    let updatedOrders: OrderTracking[];
+    if (existingIndex !== -1) {
+      // Update existing order
+      updatedOrders = [...currentOrders];
+      updatedOrders[existingIndex] = order;
+      console.log("Updated existing restaurant order:", {
+        orderId: order.orderId,
+        oldStatus: currentOrders[existingIndex].status,
+        newStatus: order.status,
+      });
+    } else {
+      // Add new order
+      updatedOrders = [...currentOrders, order];
+      console.log("Added new restaurant order:", {
+        orderId: order.orderId,
+        status: order.status,
+      });
+    }
+
+    // Sort orders by updated_at timestamp (most recent first)
+    updatedOrders.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
+
+    // Log final state
+    console.log("Updated restaurant orders:", {
+      count: updatedOrders.length,
+      orders: updatedOrders.map(mapOrderToLog),
+    });
+
+    // Save to AsyncStorage
+    await debouncedSaveToStorage(updatedOrders);
+
+    return updatedOrders;
+  }
+);
+
+export const loadOrderTrackingFromAsyncStorage = createAsyncThunk(
+  "restaurantOrderTracking/loadOrderTracking",
+  async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const orders = stored ? JSON.parse(stored) : [];
+
+      // Filter out completed/cancelled orders and sort by updated_at
+      const validOrders = orders
+        .filter(
+          (order: OrderTracking) =>
+            order.status !== Enum_OrderStatus.DELIVERED &&
+            order.status !== Enum_OrderStatus.CANCELLED &&
+            // Check if the order is in a valid ongoing state
+            [
+              Enum_OrderStatus.PENDING,
+              Enum_OrderStatus.RESTAURANT_ACCEPTED,
+              Enum_OrderStatus.EN_ROUTE,
+            ].includes(order.status)
+        )
+        .sort(
+          (a: OrderTracking, b: OrderTracking) => (b.updated_at || 0) - (a.updated_at || 0)
+        );
+
+      console.log(
+        "Loaded and filtered restaurant orders from AsyncStorage:",
+        validOrders.length,
+        validOrders.map(mapOrderToLog)
+      );
+      return validOrders;
+    } catch (error) {
+      console.error("Error loading from AsyncStorage:", error);
+      return [];
+    }
+  }
+);
+
+const restaurantOrderTrackingSlice = createSlice({
+  name: "restaurantOrderTracking",
+  initialState,
+  reducers: {
+    removeOrderTracking: (state, action) => {
+      const orderId = action.payload;
+      console.log("Removing restaurant order:", orderId);
+      state.orders = state.orders.filter((order) => order.orderId !== orderId);
+      debouncedSaveToStorage(state.orders);
+      console.log("Restaurant orders after removal:", state.orders.length);
+    },
+    clearOrderTracking: (state) => {
+      console.log("Clearing all restaurant orders");
+      state.orders = [];
+      AsyncStorage.removeItem(STORAGE_KEY);
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(loadOrderTrackingFromAsyncStorage.fulfilled, (state, action) => {
+        state.orders = action.payload;
+      })
+      .addCase(updateAndSaveOrderTracking.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.orders = action.payload;
+        }
+      });
+  },
+});
+
+export const { removeOrderTracking, clearOrderTracking } =
+  restaurantOrderTrackingSlice.actions;
+export default restaurantOrderTrackingSlice.reducer;

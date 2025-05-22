@@ -35,7 +35,7 @@ export type OrderItem = {
 
 // Define the main order type
 export type Order = {
-  _id: string;
+  id: string;
   customer_id: string | null;
   restaurant_id: string;
   customer_location: string | undefined; // Assuming it's a string  ID from an address
@@ -49,6 +49,61 @@ export type Order = {
   restaurant_note: string;
   order_time: number; // Unix timestamp
 };
+
+export type Type_PushNotification_Order = {
+  orderId: string;
+  status: Enum_OrderStatus;
+  tracking_info: Enum_OrderTrackingInfo;
+  updated_at: number;
+  customer_id: string;
+  total_amount: number;
+  order_items: {
+    item_id: string;
+    variant_id: string;
+    name: string;
+    quantity: number;
+    price_at_time_of_order: string;
+    price_after_applied_promotion: string;
+  }[];
+  driver_id: string | null;
+  restaurant_id: string;
+  restaurant_avatar: {
+    key: string;
+    url: string;
+  };
+  driver_avatar: {
+    key: string;
+    url: string;
+  } | null;
+  restaurantAddress: {
+    id: string;
+    street: string;
+    city: string;
+    nationality: string;
+    is_default: boolean;
+    created_at: number;
+    updated_at: number;
+    postal_code: number;
+    location: {
+      lat: number;
+      lng: number;
+    };
+    title: string;
+  };
+  customerAddress: {
+    id?: string;
+    street: string;
+    city: string;
+    nationality?: string;
+    is_default?: boolean;
+    postal_code: number;
+    location: {
+      lat: number;
+      lng: number;
+    };
+    title: string;
+  };
+}
 
 export enum Enum_OrderTrackingInfo {
   ORDER_PLACED = "ORDER_PLACED",

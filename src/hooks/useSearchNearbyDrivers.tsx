@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { HARDED_CODE_TEST } from "../utils/constants";
 
 // Type for the driver
 interface Driver {
-  _id: string;
+  id: string;
   lat: number;
   lng: number;
 }
@@ -56,8 +57,8 @@ const useSearchNearbyDrivers = ({
     numDrivers: number
   ): Driver[] => {
     const drivers: Driver[] = [];
-    const listDriverIdSample = ["DRI_1bcb34fa-ac9d-4611-b432-4e05586e137c"];
-
+    const listDriverIdSample = [HARDED_CODE_TEST.prioritised_drivers[0]]
+    console.log('check list driver ', listDriverIdSample)
     // Make sure we don't try to generate more drivers than we have IDs for
     const count = Math.min(numDrivers, listDriverIdSample.length);
 
@@ -77,7 +78,7 @@ const useSearchNearbyDrivers = ({
 
       // Store the generated driver
       drivers.push({
-        _id: listDriverIdSample[i],
+        id: listDriverIdSample[i],
         lat: driverLat,
         lng: driverLng,
       });

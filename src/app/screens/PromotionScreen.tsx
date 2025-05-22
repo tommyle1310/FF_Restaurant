@@ -117,7 +117,6 @@ export default function PromotionListScreen() {
         promotionId: promotion.id,
       });
       const responseData = response.data;
-      console.log("check res", responseData);
 
       if (!responseData || typeof responseData.EC !== "number") {
         throw new Error("Invalid response format");

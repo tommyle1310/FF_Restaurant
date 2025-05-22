@@ -124,9 +124,11 @@ const HomeScreen = () => {
             >
               {restaurant_name}
             </FFText>
-            <FFText style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
+         {(address?.street && address?.city && address?.nationality) ?   <FFText style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
               {address?.street}, {address?.city}, {address?.nationality}
-            </FFText>
+            </FFText> : (
+              <FFText style={{color: colors.grey}}>Unknown Address</FFText>
+            )}
           </View>
           <FFAvatar size={40} avatar={avatar?.url} />
         </View>

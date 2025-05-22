@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// src/navigation/AppNavigator.tsx
+import React, { useCallback, useEffect, useState } from "react";
 import {
   createStackNavigator,
   StackNavigationProp,
@@ -19,23 +20,19 @@ import LoginScreen from "../app/screens/Auth/LoginScreen";
 import SignupScreen from "../app/screens/Auth/SignupScreen";
 import SettingsScreen from "../app/screens/SettingsScreen";
 import MenuManagement from "../app/screens/MenuManagementScreen";
-import { Order } from "../types/Orders";
+import { Type_PushNotification_Order } from "../types/Orders";
 import * as Notifications from "expo-notifications";
 
-// Import your custom FFBottomTab
 import FFBottomTab from "../components/FFBottomTab";
 import PromotionManagement from "../app/screens/PromotionScreen";
 import CustomerFeedback from "../app/screens/CustomerFeedback";
 import useSearchNearbyDrivers from "../hooks/useSearchNearbyDrivers";
 import { useSocket } from "../hooks/useSocket";
-import { Type_PushNotification_Order } from "../types/pushNotification";
 import FFToast from "../components/FFToast";
 import FFText from "../components/FFText";
 import Spinner from "../components/FFSpinner";
 import { usePushNotifications } from "../hooks/usePushNotifications";
-import { sendPushNotification } from "../utils/functions/pushNotification";
 import { View } from "react-native";
-import socket from "../services/socket";
 import MenuItemFormScreen from "../app/screens/MenuItemFormScreen";
 import { Type_Address } from "../types/Address";
 import PaymentMethodScreen from "../app/screens/PaymentMethodScreen";
@@ -46,8 +43,8 @@ import SupportCenterScreen from "../app/screens/SupportCenterScreen";
 import FChatScreen from "../app/screens/FChatScreen";
 import CreateInquiryScreen from "../app/screens/CreateInquiryScreen";
 import StatisticsScreen from "../app/screens/StatisticsScreen";
+import { spacing } from "../theme";
 
-// Define the param lists for the navigators
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
@@ -71,7 +68,7 @@ export type MainStackParamList = {
   ChangePassword: undefined;
   PaymentMethod: undefined;
   AddressDetails?: { addressDetail?: Type_Address; is_create_type?: boolean };
-  Statistics: undefined
+  Statistics: undefined;
 };
 
 export type BottomTabParamList = {
@@ -81,7 +78,6 @@ export type BottomTabParamList = {
   Settings: undefined;
 };
 
-// Create the navigators
 const RootStack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
 const MainStack = createStackNavigator<MainStackParamList>();
@@ -89,11 +85,8 @@ const BottomTab = createBottomTabNavigator<BottomTabParamList>();
 
 type BottomNavigationProp = BottomTabNavigationProp<BottomTabParamList>;
 
-// BottomTabs component with FFBottomTab
 const BottomTabs = () => {
-  const [currentScreen, setCurrentScreen] = useState(0); // Track the current tab index
-
-  // Use useNavigation with the correct type for BottomTab navigation
+  const [currentScreen, setCurrentScreen] = useState(0);
   const navigation = useNavigation<BottomNavigationProp>();
 
   const renderedScreen = () => {
@@ -122,7 +115,6 @@ const BottomTabs = () => {
   );
 };
 
-// MainStack component
 const MainStackScreen = () => {
   const [selectedLocation, setSelectedLocation] = useState({
     lat: 10.826411,
@@ -130,74 +122,72 @@ const MainStackScreen = () => {
   });
   const { restaurant_id } = useSelector((state: RootState) => state.auth);
   const { expoPushToken } = usePushNotifications();
-  const [latestOrder, setLatestOrder] =
-    useState<Type_PushNotification_Order | null>(null);
-  const [isShowToast, setIsShowToast] = useState(false); // Đổi tên để rõ ràng hơn
-
+  const [latestOrder, setLatestOrder] = useState<Type_PushNotification_Order | null>(null);
+  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] = useState(false);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
-  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
-    useState(false);
-  useEffect(() => {
-    if (orders.length > 0) {
-      setIsShowIncomingOrderToast(true);
-      let pushToken = expoPushToken as unknown as { data: string };
-      sendPushNotification({
-        order: orders[orders.length - 1],
-        expoPushToken: pushToken,
-      });
-    }
-  }, [orders]);
-  useEffect(() => {
-    if (orders.length > 0) {
-      const order = orders[orders.length - 1] as unknown as Order;
-      let buildLatestOrder = {
-        _id: order._id,
-        customer_id: order.customer_id,
-        restaurant_id: order.restaurant_id,
-        total_amount: order.total_amount,
-        payment_method: order.payment_method,
-        customer_location: order.customer_location,
-        restaurant_location: order.restaurant_location,
-        order_items: order.order_items,
-        customer_note: order.customer_note,
-        restaurant_note: order.restaurant_note,
-        status: order.status,
-        order_time: order.order_time,
-        tracking_info: order.tracking_info,
-      } as any;
-      setLatestOrder(buildLatestOrder);
-    }
-  }, [orders]);
-  let pushToken = expoPushToken as unknown as { data: string };
-  useSocket(
+
+  // Memoize sendPushNotification with correct signature
+  const sendPushNotification = useCallback(
+    (order: Type_PushNotification_Order, expoPushToken?: { data: string }) => {
+      console.log("Sending push notification for order:", order.orderId);
+      if (expoPushToken) {
+        // Implement Expo push notification logic
+        // Example:
+        // fetch("https://exp.host/--/api/v2/push/send", {
+        //   method: "POST",
+        //   headers: { "Content-Type": "application/json" },
+        //   body: JSON.stringify({
+        //     to: expoPushToken.data,
+        //     title: `Order #${order.orderId.slice(-8)}`,
+        //     body: `Status: ${order.status}`,
+        //   }),
+        // });
+      }
+    },
+    []
+  );
+
+  // Use socket
+  const { socket, latestOrder: socketLatestOrder } = useSocket(
     restaurant_id || "",
     setOrders,
-    () =>
-      sendPushNotification({
-        order: orders[orders.length - 1],
-        expoPushToken: pushToken,
-      }),
-    setLatestOrder,
-    setIsShowToast // Truyền setter cho toast
+    sendPushNotification
   );
+
+  // Handle orders and latestOrder updates
+  useEffect(() => {
+    if (socketLatestOrder) {
+      setLatestOrder((prev) => {
+        if (
+          !prev ||
+          prev.orderId !== socketLatestOrder.orderId ||
+          prev.status !== socketLatestOrder.status
+        ) {
+          console.log("Updating latestOrder:", socketLatestOrder.orderId);
+          setIsShowIncomingOrderToast(true);
+          return socketLatestOrder;
+        }
+        return prev;
+      });
+    }
+  }, [socketLatestOrder]);
+
   const { nearbyDrivers, allDrivers } = useSearchNearbyDrivers({
     selectedLocation,
     tomtomKey: "e73LfeJGmk0feDJtiyifoYWpPANPJLhT",
     isCaptureDriverOnlyThisMoment: true,
   });
 
-  const handleAcceptOrder = async () => {
+  const handleAcceptOrder = useCallback(async () => {
+    if (!latestOrder) return;
     const requestBody = {
       availableDrivers: allDrivers,
-      orderDetails: {
-        ...latestOrder,
-        customer_id: latestOrder?.customer_id, // Ensure customer_id is included
-      },
+      orderDetails: latestOrder.orderId,
     };
-    // Emit the event to the backend via WebSocket
-    socket.emit("restaurantAcceptWithAvailableDrivers", requestBody);
+    console.log("Sending restaurantAcceptWithAvailableDrivers:", requestBody);
+    socket?.emit("restaurantAcceptWithAvailableDrivers", requestBody);
     setIsShowIncomingOrderToast(false);
-  };
+  }, [latestOrder, allDrivers, socket]);
 
   return (
     <>
@@ -263,7 +253,6 @@ const MainStackScreen = () => {
           component={FChatScreen}
         />
       </MainStack.Navigator>
-      {/* FFToast logic is commented for now */}
       <FFToast
         disabledClose
         onAccept={handleAcceptOrder}
@@ -272,20 +261,20 @@ const MainStackScreen = () => {
         isApprovalType
       >
         <FFText>Incoming Order</FFText>
-        <View className="flex-row items-center gap-4">
-          <View className="flex-row items-center gap-1">
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <FFText fontSize="sm" fontWeight="500">
               Total:
             </FFText>
             <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
-              ${latestOrder?.total_amount}
+              ${latestOrder?.total_amount ?? 0}
             </FFText>
           </View>
-          <View className="flex-row items-center gap-1">
-            <FFText fontSize="sm" fontWeight="600">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
               {latestOrder?.order_items?.length || 0}
             </FFText>
-            <FFText fontSize="sm" fontWeight="500" style={{ color: "#63c550" }}>
+            <FFText fontSize="sm" fontWeight="500">
               items
             </FFText>
           </View>
@@ -310,7 +299,7 @@ const AppNavigator = () => {
         component={SignupScreen}
       />
       <RootStack.Screen
-        name={"Main"}
+        name="Main"
         options={{ headerShown: false }}
         component={MainStackScreen}
       />

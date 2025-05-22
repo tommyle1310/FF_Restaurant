@@ -238,7 +238,6 @@ const MenuItemFormScreen = () => {
                 },
               }
             );
-            console.log("check res avatar menutein", responseAvatar.data);
           } catch (error) {
             console.error("Failed to upload image:", error);
             // We don't show an error alert here since the menu item was created successfully
