@@ -87,7 +87,11 @@ const HomeScreen = () => {
       label: "Promotions",
       onPress: () => navigation.navigate("Promotions"),
     },
-    { id: 5, icon: "wallet", label: "My Wallet" },
+    { id: 5, icon: "wallet", label: "My Wallet",
+      onPress: () => navigation.navigate("PaymentMethod"),
+
+
+     },
     { id: 6, icon: "bulb", label: "Marketing" },
   ];
 

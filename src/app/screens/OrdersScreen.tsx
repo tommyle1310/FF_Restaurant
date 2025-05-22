@@ -156,13 +156,14 @@ const OrderCard = ({
 
   const getStatusColor = (status: string) => {
     const statusColors: { [key: string]: string } = {
-      PENDING: colors.warning,
+      PENDING: colors.error,
       ACCEPTED: colors.info,
       EN_ROUTE: colors.success,
-      COMPLETED: colors.grey,
-      CANCELLED: colors.error,
-      REJECTED: colors.error,
+      DELIVERED: colors.primary,
+      CANCELLED: colors.grey,
+      REJECTED: colors.grey,
     };
+
     return statusColors[status] || colors.grey;
   };
 
@@ -259,14 +260,14 @@ const OrderCard = ({
         <View pointerEvents="none">
           <FFView style={styles.expandedContent}>
             {item.customer_note && (
-              <FFView style={styles.noteContainer}>
+              <FFView style={{...styles.noteContainer, backgroundColor: '#f5f4da'}}>
                 <FFText style={styles.noteLabel}>Customer Note:</FFText>
                 <FFText style={styles.noteText}>{item.customer_note}</FFText>
               </FFView>
             )}
 
             {item.restaurant_note && (
-              <FFView style={styles.noteContainer}>
+              <FFView style={{...styles.noteContainer, backgroundColor: '#e7fce3'}}>
                 <FFText style={styles.noteLabel}>Restaurant Note:</FFText>
                 <FFText style={styles.noteText}>{item.restaurant_note}</FFText>
               </FFView>
@@ -456,6 +457,7 @@ const styles = StyleSheet.create<Styles>({
   },
   list: {
     padding: spacing.screenPadding,
+    paddingBottom: spacing.veryLarge,
   },
   orderCard: {
     backgroundColor: colors.background,

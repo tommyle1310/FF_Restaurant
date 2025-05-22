@@ -112,15 +112,13 @@ const PaymentMethodScreen = () => {
               ${fWallet_balance}
             </FFText>
           </View>
-          <FFButton
+          <TouchableOpacity
             onPress={openFWallet}
             style={styles.topUpButton}
-            isLinear
-            className="flex-row items-center gap-2"
           >
             <IconAntDesign name="plus" size={16} color="#fff" />
             <FFText style={{ color: "#fff" }}>Top Up</FFText>
-          </FFButton>
+          </TouchableOpacity>
         </FFView>
 
         {/* Payment Methods Section */}
@@ -262,9 +260,12 @@ const styles = StyleSheet.create({
     color: "#888",
   },
   topUpButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    backgroundColor: colors.primary,
+    padding: spacing.md,
     borderRadius: 8,
+    alignItems: 'center',
+    gap: spacing.sm
   },
   section: {
     flexDirection: "row",

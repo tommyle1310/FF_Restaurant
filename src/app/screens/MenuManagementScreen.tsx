@@ -143,18 +143,6 @@ const MenuManagement = () => {
 
   return (
     <FFView style={styles.container}>
-      <FFModal visible={isShowModal} onClose={() => setIsShowModal(false)}>
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("MenuItemForm", {
-              menuItemId: selectedMenuItemId,
-            })
-          }
-        >
-          <FFText style={{ textAlign: "center" }}>Edit this menu item</FFText>
-        </TouchableOpacity>
-      </FFModal>
-
       <FFModal
         visible={isShowStatusModal}
         onClose={() => setIsShowStatusModal(false)}
@@ -193,7 +181,16 @@ const MenuManagement = () => {
       {/* Menu Items List */}
       <ScrollView style={styles.menuList}>
         {menuItems?.map((item) => (
-          <View key={item.id} style={styles.menuItem}>
+          <FFView
+            onPress={() => {
+              setSelectedMenuItemId(item.id);
+              navigation.navigate("MenuItemForm", {
+                menuItemId: selectedMenuItemId,
+              });
+            }}
+            key={item.id}
+            style={styles.menuItem}
+          >
             <View style={styles.menuItemContent}>
               <Image
                 source={{
@@ -238,7 +235,7 @@ const MenuManagement = () => {
                     handleToggleAvailability(item);
                   }}
                 />
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   onPress={() => {
                     setSelectedMenuItemId(item.id);
                     setIsShowModal(true);
@@ -246,10 +243,10 @@ const MenuManagement = () => {
                   style={styles.moreButton}
                 >
                   <IconMaterialIcons name="more-vert" size={24} color="#666" />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </View>
-          </View>
+          </FFView>
         ))}
       </ScrollView>
 

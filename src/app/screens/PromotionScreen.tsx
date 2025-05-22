@@ -1,28 +1,30 @@
+import { View, Text, FlatList, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { useSelector, useDispatch } from "@/src/store/types";
+import { RootState } from "@/src/store/store";
+import axiosInstance from "@/src/utils/axiosConfig";
+import { useEffect, useState } from "react";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import FFButton from "@/src/components/FFButton";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import FFScreenTopSection from "@/src/components/FFScreenTopSection";
-import Spinner from "@/src/components/FFSpinner";
-import { MainStackParamList } from "@/src/navigation/AppNavigator";
-import { Promotion } from "@/src/store/authSlice";
-import { RootState } from "@/src/store/store";
-import { useSelector } from "@/src/store/types";
-import axiosInstance from "@/src/utils/axiosConfig";
-import { useNavigation } from "@react-navigation/native";
-import { StackNavigationProp } from "@react-navigation/stack";
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  Button,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
-import * as IntentLauncher from "expo-intent-launcher";
-import FFModal from "@/src/components/FFModal";
 import FFText from "@/src/components/FFText";
-import { spacing } from "@/src/theme/spacing";
+import FFModal from "@/src/components/FFModal";
+import Spinner from "@/src/components/FFSpinner";
+import IntentLauncher from "expo-intent-launcher";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { spacing } from "@/src/theme";
+
+interface Promotion {
+  id: string;
+  name: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  [key: string]: any;
+}
 
 type PromotionScreenNavigationProps = StackNavigationProp<
   MainStackParamList,
@@ -31,50 +33,150 @@ type PromotionScreenNavigationProps = StackNavigationProp<
 
 export default function PromotionListScreen() {
   const navigation = useNavigation<PromotionScreenNavigationProps>();
-  const { promotions, restaurant_id } = useSelector(
-    (state: RootState) => state.auth
-  );
+  const dispatch = useDispatch();
+  const { restaurant_id, promotions } = useSelector((state: RootState) => state.auth);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPromotions, setCurrentPromotions] = useState<Promotion[]>([]);
-  const [flashFoodPromotions, setFlashFoodPromotions] = useState<Promotion[]>(
-    []
-  );
+  const [flashFoodPromotions, setFlashFoodPromotions] = useState<Promotion[]>([]);
   const [expiredPromotions, setExpiredPromotions] = useState<Promotion[]>([]);
-  const [activeTab, setActiveTab] = useState<
-    "Current" | "FlashFood" | "Expired"
-  >("Current");
+  const [activeTab, setActiveTab] = useState<"Current" | "FlashFood" | "Expired">("Current");
   const [isShowInsufficientModal, setIsShowInsufficientModal] = useState(false);
+  const [isShowPromotionExpiredModal, setIsShowPromotionExpiredModal] = useState(false);
+
+  // Lưu và khôi phục promotions từ AsyncStorage
+  const savePromotions = async (promotions: Promotion[]) => {
+    try {
+      await AsyncStorage.setItem("currentPromotions", JSON.stringify(promotions));
+    } catch (error) {
+      console.error("Error saving promotions:", error);
+    }
+  };
+
+  const loadPromotions = async () => {
+    try {
+      const data = await AsyncStorage.getItem("currentPromotions");
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error("Error loading promotions:", error);
+      return [];
+    }
+  };
+
+  // Cập nhật Redux store
+  const updatePromotionsInStore = (newPromotions: Promotion[]) => {
+    dispatch({
+      type: "auth/updatePromotions",
+      payload: newPromotions,
+    });
+  };
+
+  const fetchAllPromotions = async () => {
+    setIsLoading(true);
+    try {
+      // Lấy tất cả promotions có sẵn
+      const response = await axiosInstance.get("/promotions");
+      const responseData = response.data;
+      if (responseData.EC !== 0) {
+        console.error("Error fetching available promotions:", responseData.EM);
+        return;
+      }
+      const allPromotions = responseData.data;
+      console.log("check available promotions", allPromotions);
+
+      // Phân loại promotions
+      const currentTime = Date.now() / 1000;
+      const current = currentPromotions; // Giữ currentPromotions từ state hoặc AsyncStorage
+      const expired: Promotion[] = [];
+      const flashFood: Promotion[] = [];
+
+      allPromotions.forEach((promo: Promotion) => {
+        const isApplied = current.some((p: Promotion) => p.id === promo.id);
+        const isExpired = parseInt(promo.end_date) < currentTime;
+
+        if (isApplied && isExpired) {
+          expired.push(promo);
+        } else if (!isApplied && !isExpired) {
+          flashFood.push(promo);
+        }
+      });
+
+      setFlashFoodPromotions(flashFood);
+      setExpiredPromotions(expired);
+    } catch (error) {
+      console.error("Error in fetchAllPromotions:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleBuyPromotion = async (promotion: Promotion) => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.post(
-        "/restaurants/apply-promotion",
-        {
-          restaurantId: restaurant_id,
-          promotionId: promotion.id,
-        }
-      );
+      const response = await axiosInstance.post("/restaurants/apply-promotion", {
+        restaurantId: restaurant_id,
+        promotionId: promotion.id,
+      });
       const responseData = response.data;
+      console.log("check res", responseData);
+
+      if (!responseData || typeof responseData.EC !== "number") {
+        throw new Error("Invalid response format");
+      }
+
       const { EC, EM, data } = responseData;
-      console.log("cehck res", responseData);
 
       if (EC === 0) {
-        setCurrentPromotions([...currentPromotions, promotion]);
-        setFlashFoodPromotions(
-          flashFoodPromotions.filter((p) => p.id !== promotion.id)
+        console.log("check step: EC === 0");
+
+        // Cập nhật currentPromotions
+        let updatedCurrentPromotions = [...currentPromotions];
+        if (data.restaurant.promotions) {
+          // Giả sử data.restaurant.promotions chứa danh sách promotions đầy đủ
+          updatedCurrentPromotions = data.restaurant.promotions;
+        } else {
+          // Nếu không có promotions trong response, thêm promotion vừa mua
+          updatedCurrentPromotions = [...currentPromotions, promotion];
+        }
+        const updatedFlashFoodPromotions = flashFoodPromotions.filter(
+          (p) => p.id !== promotion.id
         );
-        fetchAllPromotions();
+        console.log("check step: updated currentPromotions", updatedCurrentPromotions);
+        console.log("check step: updated flashFoodPromotions", updatedFlashFoodPromotions);
+
+        // Cập nhật state
+        setCurrentPromotions(updatedCurrentPromotions);
+        setFlashFoodPromotions(updatedFlashFoodPromotions);
+
+        // Lưu vào AsyncStorage
+        await savePromotions(updatedCurrentPromotions);
+
+        // Cập nhật Redux store
+        updatePromotionsInStore(updatedCurrentPromotions);
+
+        // Làm mới danh sách promotions
+        try {
+          console.log("check step: calling fetchAllPromotions");
+          await fetchAllPromotions();
+          console.log("check step: fetchAllPromotions completed");
+        } catch (fetchError) {
+          console.error("Error in fetchAllPromotions:", fetchError);
+        }
       } else if (EC === -8) {
+        console.log("check step: EC === -8, showing insufficient modal");
         setIsShowInsufficientModal(true);
+      } else if (EC === -9) {
+        console.log("check step: EC === -9, showing expired modal");
+        setIsShowPromotionExpiredModal(true);
       } else {
-        Alert.alert("Failed to purchase promotion");
+        console.log("check step: EC else, showing alert", EC);
+        Alert.alert("Failed to purchase promotion", EM || "Unknown error");
       }
+    } catch (err: any) {
+      console.error("Error in handleBuyPromotion:", err);
+      Alert.alert("Failed to purchase promotion", err.message || "An unexpected error occurred");
+    } finally {
       setIsLoading(false);
       console.log("check promo", promotion);
-    } catch (err) {
-      setIsLoading(false);
-      Alert.alert("Failed to purchase promotion");
     }
   };
 
@@ -98,21 +200,12 @@ export default function PromotionListScreen() {
       {type === "FlashFood" && (
         <FFButton
           variant={
-            currentPromotions.some(
-              (currentPromotion) => currentPromotion.id === item.id
-            )
-              ? "disabled"
-              : "primary"
+            currentPromotions.some((p) => p.id === item.id) ? "disabled" : "primary"
           }
-          style={{}}
-          className="w-full"
+          style={{ width: "100%", flex: 1 }}
           onPress={() => handleBuyPromotion(item)}
         >
-          {currentPromotions.some(
-            (currentPromotion) => currentPromotion.id === item.id
-          )
-            ? "Purchased"
-            : "Purchase"}
+          {currentPromotions.some((p) => p.id === item.id) ? "Purchased" : "Purchase"}
         </FFButton>
       )}
     </View>
@@ -144,33 +237,6 @@ export default function PromotionListScreen() {
     );
   };
 
-  useEffect(() => {
-    const validPromotions = promotions
-      ?.map((p) =>
-        parseInt(p.start_date) < Date.now() / 1000 &&
-        parseInt(p.end_date) > Date.now() / 1000
-          ? p
-          : null
-      )
-      .filter((p) => p !== null);
-    setCurrentPromotions(validPromotions as Promotion[]);
-  }, [promotions]);
-
-  useEffect(() => {
-    fetchAllPromotions();
-  }, []);
-
-  const fetchAllPromotions = async () => {
-    const response = await axiosInstance.get("/promotions");
-    const responseData = response.data;
-    const { EC, EM, data } = responseData;
-    if (EC === 0) {
-      console.log("cehc kdata", data);
-
-      setFlashFoodPromotions(data);
-    }
-  };
-
   const openFWallet = async () => {
     try {
       await IntentLauncher.startActivityAsync("android.intent.action.MAIN", {
@@ -181,6 +247,31 @@ export default function PromotionListScreen() {
       console.log("Error opening FWallet:", error);
     }
   };
+
+  useEffect(() => {
+    const initialize = async () => {
+      setIsLoading(true);
+      try {
+        // Khôi phục currentPromotions từ AsyncStorage
+        const savedPromotions = await loadPromotions();
+        setCurrentPromotions(savedPromotions);
+
+        // Lấy promotions từ Redux store (nếu có)
+        if (promotions && promotions.length > 0) {
+          setCurrentPromotions(promotions);
+          await savePromotions(promotions);
+        }
+
+        // Lấy danh sách promotions có sẵn
+        await fetchAllPromotions();
+      } catch (error) {
+        console.error("Error initializing promotions:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initialize();
+  }, [restaurant_id, promotions]);
 
   if (isLoading) {
     return <Spinner isVisible isOverlay />;
@@ -251,10 +342,17 @@ export default function PromotionListScreen() {
           </FFButton>
         </View>
       </FFModal>
+      <FFModal
+        visible={isShowPromotionExpiredModal}
+        onClose={() => setIsShowPromotionExpiredModal(false)}
+      >
+        <View style={styles.modalContent}>
+          <FFText style={styles.modalText}>This promotion has expired.</FFText>
+        </View>
+      </FFModal>
     </FFSafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -315,12 +413,12 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     padding: spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing.md,
   },
   modalText: {
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: spacing.sm,
   },
   modalButton: {

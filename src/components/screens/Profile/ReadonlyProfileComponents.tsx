@@ -12,16 +12,16 @@ const ReadonlyProfileComponents = ({
 }: {
   toggleStatus: () => void;
 }) => {
-  const { user_id, avatar } = useSelector((state: RootState) => state.auth);
+  const { user_id, avatar, restaurant_name, email , contact_phone} = useSelector((state: RootState) => state.auth);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <FFAvatar avatar={avatar?.url} />
         <View style={styles.userInfo}>
-          <FFText fontSize="lg">Tommy Teo</FFText>
+          <FFText fontSize="lg">{restaurant_name}</FFText>
           <FFText fontWeight="400" style={styles.emailText}>
-            abc@gmail.com
+            {email}
           </FFText>
         </View>
         <TouchableOpacity onPress={toggleStatus} style={styles.editButton}>
@@ -32,7 +32,7 @@ const ReadonlyProfileComponents = ({
         <FFText style={styles.labelText} fontWeight="400">
           Phone Number:
         </FFText>
-        <FFText fontWeight="400">(+84) 707171164</FFText>
+        <FFText fontWeight="400">{contact_phone?.find(item => item?.is_default)?.number || contact_phone?.[0]?.number || ''}</FFText>
       </View>
       <View style={styles.infoRow}>
         <FFText style={styles.labelText} fontWeight="400">
