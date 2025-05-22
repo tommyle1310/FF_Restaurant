@@ -49,7 +49,6 @@ const Signup = () => {
       password: formData.password,
       owner_name: formData.owner_name,
       restaurant_name: formData.restaurant_name,
-      address_id: "FF_AB_40738608-fdb9-4173-b4dc-93d88e9c15c7",
       contact_email:
         formData.contact_email.length > 0
           ? formData.contact_email
@@ -98,6 +97,7 @@ const Signup = () => {
             setEmail(formData.email);
             setIsOpenVerificationModal(true);
           } else {
+            console.log("check resposne ", response.data);
             setError(EM);
           }
         } else {

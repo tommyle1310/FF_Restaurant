@@ -1,10 +1,14 @@
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from "react-native";
-import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
+import React, { useEffect, useState, useMemo } from "react";
 import FFView from "@/src/components/FFView";
-import FFScreenTopSection from "@/src/components/FFScreenTopSection";
-import { StackNavigationProp } from "@react-navigation/stack";
-// import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
-import { useNavigation } from "@react-navigation/native";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import { LinearGradient } from "expo-linear-gradient";
 import FFText from "@/src/components/FFText";
@@ -14,8 +18,10 @@ import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { Picker } from "@react-native-picker/picker";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import { spacing } from "@/src/theme";
+import { useNavigation } from "@react-navigation/native";
 
 type TrackHistorySreenNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -38,6 +44,17 @@ const months = [
 ];
 
 const days = Array.from({ length: 31 }, (_, i) => i + 1);
+const years = Array.from(
+  { length: 5 },
+  (_, i) => new Date().getFullYear() - 2 + i
+); // Từ 2 năm trước đến 2 năm sau
+
+interface StatsData {
+  total_orders: number;
+  total_revenue: number;
+  total_tips: number;
+  total_online_hours: number;
+}
 
 const StatisticsScreen = () => {
   const navigation = useNavigation<TrackHistorySreenNavigationProp>();
@@ -46,136 +63,40 @@ const StatisticsScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [startDate, setStartDate] = useState(() => {
     const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    const start = new Date(now.setDate(diff));
-    start.setHours(0, 0, 0, 0);
-    return start;
+    now.setDate(now.getDate() - 7); // 7 ngày trước
+    now.setHours(0, 0, 0, 0);
+    return now;
   });
   const [endDate, setEndDate] = useState(() => {
     const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? 0 : 7); // Adjust when day is Sunday
-    const end = new Date(now.setDate(diff));
-    end.setHours(23, 59, 59, 999);
-    return end;
+    now.setHours(23, 59, 59, 999);
+    return now;
   });
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [tempStartYear, setTempStartYear] = useState(startDate.getFullYear());
   const [tempStartMonth, setTempStartMonth] = useState(startDate.getMonth());
   const [tempStartDay, setTempStartDay] = useState(startDate.getDate());
+  const [tempEndYear, setTempEndYear] = useState(endDate.getFullYear());
   const [tempEndMonth, setTempEndMonth] = useState(endDate.getMonth());
   const [tempEndDay, setTempEndDay] = useState(endDate.getDate());
 
   // State cho dữ liệu từ API
-  const [statsData, setStatsData] = useState({
-    total_earns: 0,
+  const [statsData, setStatsData] = useState<StatsData>({
+    total_orders: 0,
+    total_revenue: 0,
     total_tips: 0,
     total_online_hours: 0,
   });
-
-  // State cho tab và dữ liệu chart
-  const [activeTab, setActiveTab] = useState<"earns" | "tips" | "hours">(
-    "earns"
-  );
-  const [chartData, setChartData] = useState<number[]>([]);
   const [statsRecords, setStatsRecords] = useState<any[]>([]);
 
-  useEffect(() => {
-    fetchDriverStats();
-  }, [restaurant_id, startDate, endDate]);
+  // State cho tab và dữ liệu chart
+  const [activeTab, setActiveTab] = useState<"revenue" | "tips" | "hours">(
+    "revenue"
+  );
 
-  const fetchDriverStats = async () => {
-    setIsLoading(true);
-    try {
-      const startDateStr = startDate.toISOString().split("T")[0]; // YYYY-MM-DD
-      const endDateStr = endDate.toISOString().split("T")[0];
-      const res = await axiosInstance.get(
-        `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}`
-      );
-      const { EC, EM, data } = res.data;
-      if (EC === 0) {
-        console.log("Driver stats data:", data);
-        setStatsRecords(data);
-
-        // Tính tổng từ tất cả records
-        const totalStats = data.reduce(
-          (
-            acc: {
-              total_earns: number;
-              total_tips: number;
-              total_online_hours: number;
-            },
-            record: any
-          ) => ({
-            total_earns: acc.total_earns + (record.total_earns || 0),
-            total_tips: acc.total_tips + (record.total_tips || 0),
-            total_online_hours:
-              acc.total_online_hours + (record.total_online_hours || 0),
-          }),
-          { total_earns: 0, total_tips: 0, total_online_hours: 0 }
-        );
-
-        setStatsData(totalStats);
-        updateChartData(data, activeTab);
-      } else {
-        console.error("Error from API:", EM);
-      }
-    } catch (err) {
-      console.error("Error fetching driver stats:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateChartData = (records: any[], tab: string) => {
-    let chartValues: number[];
-    if (tab === "earns") {
-      chartValues = records.map((record) => record.total_earns || 0);
-    } else if (tab === "tips") {
-      chartValues = records.map((record) => record.total_tips || 0);
-    } else {
-      chartValues = records.map((record) => record.total_online_hours || 0);
-    }
-
-    // Không tạo dữ liệu giả nếu chỉ có 1 record, giữ nguyên 1 giá trị
-    console.log("check chart data", chartValues);
-    setChartData(chartValues);
-  };
-
-  const handleTabChange = (tab: "earns" | "tips" | "hours") => {
-    setActiveTab(tab);
-    updateChartData(statsRecords, tab);
-  };
-
-  const onStartDateConfirm = () => {
-    const newDate = new Date(
-      startDate.getFullYear(),
-      tempStartMonth,
-      tempStartDay
-    );
-    setStartDate(newDate);
-    setShowStartPicker(false);
-  };
-
-  const onEndDateConfirm = () => {
-    const newDate = new Date(endDate.getFullYear(), tempEndMonth, tempEndDay);
-    setEndDate(newDate);
-    setShowEndPicker(false);
-  };
-
-  const formatDate = (date: Date): string => {
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const formatHours = (hours: number): string => {
-    const h = Math.floor(hours);
-    const m = Math.round((hours - h) * 60);
-    return `${h}h ${m}m`;
-  };
-
-  // Trong StatisticsScreen
-  const getChartLabels = () => {
+  // Lưu trữ nhãn và dữ liệu chart
+  const chartLabels = useMemo(() => {
     return statsRecords.map((record) => {
       const date = new Date(parseInt(record.period_start) * 1000);
       return date.toLocaleDateString("en-VN", {
@@ -183,13 +104,130 @@ const StatisticsScreen = () => {
         day: "numeric",
       });
     });
+  }, [statsRecords]);
+
+  const chartData = useMemo(() => {
+    return statsRecords.map((record) => {
+      switch (activeTab) {
+        case "revenue":
+          return record.total_revenue || 0;
+        case "tips":
+          return record.total_tips || 0;
+        case "hours":
+          return record.total_online_hours || 0;
+        default:
+          return 0;
+      }
+    });
+  }, [statsRecords, activeTab]);
+
+
+  useEffect(() => {
+    if (restaurant_id) {
+      fetchRestaurantStats();
+    }
+  }, [restaurant_id, startDate, endDate]);
+ 
+
+  const fetchRestaurantStats = async () => {
+    setIsLoading(true);
+    try {
+      const startDateStr = startDate.toISOString().split("T")[0];
+      const endDateStr = endDate.toISOString().split("T")[0];
+      console.log(
+        `[Request] /restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
+      );
+      const res = await axiosInstance.get(
+        `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
+      );
+      const { EC, EM, data } = res.data;
+      if (EC === 0) {
+        console.log("Restaurant stats data:", data);
+        setStatsRecords(data);
+
+        // Tính tổng các chỉ số
+        const totalStats = data.reduce(
+          (acc: StatsData, record: any) => ({
+            total_orders: acc.total_orders + (record.total_orders || 0),
+            total_revenue: acc.total_revenue + (record.total_revenue || 0),
+            total_tips: acc.total_tips + (record.total_tips || 0),
+            total_online_hours:
+              acc.total_online_hours + (record.total_online_hours || 0),
+          }),
+          {
+            total_orders: 0,
+            total_revenue: 0,
+            total_tips: 0,
+            total_online_hours: 0,
+          }
+        );
+
+        setStatsData(totalStats);
+      } else {
+        console.error("Error from API:", EM);
+        setStatsRecords([]);
+        setStatsData({
+          total_orders: 0,
+          total_revenue: 0,
+          total_tips: 0,
+          total_online_hours: 0,
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching restaurant stats:", err);
+      setStatsRecords([]);
+      setStatsData({
+        total_orders: 0,
+        total_revenue: 0,
+        total_tips: 0,
+        total_online_hours: 0,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  console.log('cehcke total orders', statsRecords[1].total_orders)
+  const handleTabChange = (tab: "revenue" | "tips" | "hours") => {
+    setActiveTab(tab);
+  };
+
+  const onStartDateConfirm = () => {
+    const newDate = new Date(tempStartYear, tempStartMonth, tempStartDay);
+    if (newDate <= endDate) {
+      setStartDate(newDate);
+    }
+    setShowStartPicker(false);
+  };
+
+  const onEndDateConfirm = () => {
+    const newDate = new Date(
+      tempEndYear,
+      tempEndMonth,
+      tempEndDay,
+      23,
+      59,
+      59,
+      999
+    );
+    if (newDate >= startDate) {
+      setEndDate(newDate);
+    }
+    setShowEndPicker(false);
+  };
+
+  const formatDate = (date: Date): string => {
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
 
   return (
     <FFSafeAreaView>
-      <LinearGradient
+     <ScrollView>
+     <LinearGradient
         colors={["#63c550", "#a3d98f"]}
         start={[0, 0]}
         end={[1, 0]}
@@ -210,8 +248,14 @@ const StatisticsScreen = () => {
             <IconIonicons name="chevron-back" color={"#fff"} size={24} />
           </TouchableOpacity>
         </View>
-        <View style={{alignItems: 'center' , justifyContent: 'center', gap: spacing.sm}} >
-          <FFText style={styles.headerText}>Earnings</FFText>
+        <View
+          style={{
+            alignItems: "center",
+            justifyContent: "center",
+            gap: spacing.sm,
+          }}
+        >
+          <FFText style={styles.headerText}>Restaurant Statistics</FFText>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <TouchableOpacity onPress={() => setShowStartPicker(true)}>
               <FFText fontSize="sm" fontWeight="500" style={{ color: "#fff" }}>
@@ -228,51 +272,42 @@ const StatisticsScreen = () => {
             </TouchableOpacity>
           </View>
           <FFText fontWeight="700" fontSize="lg" style={{ color: "#fff" }}>
-            ${statsData.total_earns.toFixed(2)}
+            ${statsData.total_revenue.toFixed(2)}
           </FFText>
         </View>
       </LinearGradient>
+
       {/* Summary Cards */}
       <View
-        style={{
-          marginTop: -32,
-          padding: 16,
-          width: "100%",
-          flexDirection: "row",
-          gap: 12,
-        }}
+        style={{ marginTop: -32, padding: 16, flexDirection: "row", gap: 12 }}
       >
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-          }}
-        >
-          <FFText>Earnings</FFText>
+        <View style={styles.summaryCard}>
+          <FFText>Orders</FFText>
           <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            ${statsData.total_earns.toFixed(2)}
+            {statsData.total_orders}
           </FFText>
         </View>
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-          }}
-        >
-          <FFText>Online Hours</FFText>
+        <View style={styles.summaryCard}>
+          <FFText>Revenue</FFText>
           <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {formatHours(statsData.total_online_hours)}
+            ${statsData.total_revenue.toFixed(2)}
           </FFText>
         </View>
       </View>
+
+      {/* Loading Indicator */}
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#63c550" />
+        </View>
+      )}
+
+      {/* No Data Message */}
+      {!isLoading && statsRecords.length === 0 && (
+        <View style={styles.noDataContainer}>
+          <FFText>No statistics available for the selected period.</FFText>
+        </View>
+      )}
 
       {/* Start Date Picker Modal */}
       <Modal visible={showStartPicker} transparent animationType="slide">
@@ -280,6 +315,15 @@ const StatisticsScreen = () => {
           <View style={styles.pickerContainer}>
             <FFText style={styles.modalTitle}>Select Start Date</FFText>
             <View style={styles.pickerRow}>
+              <Picker
+                selectedValue={tempStartYear}
+                onValueChange={(itemValue) => setTempStartYear(itemValue)}
+                style={styles.picker}
+              >
+                {years.map((year) => (
+                  <Picker.Item key={year} label={`${year}`} value={year} />
+                ))}
+              </Picker>
               <Picker
                 selectedValue={tempStartMonth}
                 onValueChange={(itemValue) => setTempStartMonth(itemValue)}
@@ -316,13 +360,20 @@ const StatisticsScreen = () => {
           </View>
         </View>
       </Modal>
-
-      {/* End Date Picker Modal */}
       <Modal visible={showEndPicker} transparent animationType="slide">
         <View style={styles.modalContainer}>
           <View style={styles.pickerContainer}>
             <FFText style={styles.modalTitle}>Select End Date</FFText>
             <View style={styles.pickerRow}>
+              <Picker
+                selectedValue={tempEndYear}
+                onValueChange={(itemValue) => setTempEndYear(itemValue)}
+                style={styles.picker}
+              >
+                {years.map((year) => (
+                  <Picker.Item key={year} label={`${year}`} value={year} />
+                ))}
+              </Picker>
               <Picker
                 selectedValue={tempEndMonth}
                 onValueChange={(itemValue) => setTempEndMonth(itemValue)}
@@ -359,62 +410,85 @@ const StatisticsScreen = () => {
           </View>
         </View>
       </Modal>
-
       {/* Tabs */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-around",
-          marginVertical: 16,
-        }}
-      >
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "earns" && styles.activeTab]}
-          onPress={() => handleTabChange("earns")}
-        >
-          <FFText
-            style={
-              activeTab === "earns" ? styles.activeTabText : styles.tabText
-            }
+      {statsRecords.length > 0 && (
+        <>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-around",
+              marginVertical: 16,
+            }}
           >
-            Earnings
-          </FFText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "tips" && styles.activeTab]}
-          onPress={() => handleTabChange("tips")}
-        >
-          <FFText
-            style={activeTab === "tips" ? styles.activeTabText : styles.tabText}
-          >
-            Tips
-          </FFText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "hours" && styles.activeTab]}
-          onPress={() => handleTabChange("hours")}
-        >
-          <FFText
-            style={
-              activeTab === "hours" ? styles.activeTabText : styles.tabText
-            }
-          >
-            Hours
-          </FFText>
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "revenue" && styles.activeTab]}
+              onPress={() => handleTabChange("revenue")}
+            >
+              <FFText
+                style={
+                  activeTab === "revenue"
+                    ? styles.activeTabText
+                    : styles.tabText
+                }
+              >
+                Revenue
+              </FFText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "tips" && styles.activeTab]}
+              onPress={() => handleTabChange("tips")}
+            >
+              <FFText
+                style={
+                  activeTab === "tips" ? styles.activeTabText : styles.tabText
+                }
+              >
+                Tips
+              </FFText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "hours" && styles.activeTab]}
+              onPress={() => handleTabChange("hours")}
+            >
+              <FFText
+                style={
+                  activeTab === "hours" ? styles.activeTabText : styles.tabText
+                }
+              >
+                Hours
+              </FFText>
+            </TouchableOpacity>
+          </View>
 
-      {/* Chart */}
-      <FFBarChart data={chartData} labels={getChartLabels()} />
+          {/* Chart */}
+          <FFBarChart data={chartData} labels={chartLabels} />
+        </>
+      )}
+
+      {/* Popular Items */}
+      {statsRecords.length > 0 && (
+        <View style={{ padding: 16 }}>
+          <FFText style={{ fontSize: 18, fontWeight: "bold", marginBottom: 8 }}>
+            Popular Items
+          </FFText>
+          {statsRecords.map((record, index) =>
+            record.popular_items.map((item: any, itemIndex: number) => (
+              <View key={`${index}-${itemIndex}`} style={styles.itemContainer}>
+                <FFText>{item.name}</FFText>
+                <FFText>
+                  Qty: {item.quantity} | ${item.revenue.toFixed(2)}
+                </FFText>
+              </View>
+            ))
+          )}
+        </View>
+      )}
+     </ScrollView>
     </FFSafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f9f9f9",
-  },
   headerGradient: {
     paddingHorizontal: 12,
     paddingVertical: 24,
@@ -431,11 +505,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     top: 16,
-    marginRight: 12,
   },
   headerText: {
     color: "#fff",
     fontSize: 24,
+  },
+  summaryCard: {
+    elevation: 3,
+    padding: 16,
+    alignItems: "center",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    flex: 1,
   },
   modalContainer: {
     flex: 1,
@@ -447,7 +528,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 10,
     padding: 20,
-    width: "80%",
+    width: "90%",
     alignItems: "center",
   },
   modalTitle: {
@@ -461,7 +542,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   picker: {
-    width: "50%",
+    width: "33%",
   },
   buttonRow: {
     flexDirection: "row",
@@ -491,6 +572,25 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: "#fff",
     fontWeight: "bold",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  noDataContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  itemContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
 });
 

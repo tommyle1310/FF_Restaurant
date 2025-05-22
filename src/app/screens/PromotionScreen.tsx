@@ -19,6 +19,10 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import * as IntentLauncher from "expo-intent-launcher";
+import FFModal from "@/src/components/FFModal";
+import FFText from "@/src/components/FFText";
+import { spacing } from "@/src/theme/spacing";
 
 type PromotionScreenNavigationProps = StackNavigationProp<
   MainStackParamList,
@@ -39,6 +43,7 @@ export default function PromotionListScreen() {
   const [activeTab, setActiveTab] = useState<
     "Current" | "FlashFood" | "Expired"
   >("Current");
+  const [isShowInsufficientModal, setIsShowInsufficientModal] = useState(false);
 
   const handleBuyPromotion = async (promotion: Promotion) => {
     setIsLoading(true);
@@ -60,6 +65,8 @@ export default function PromotionListScreen() {
           flashFoodPromotions.filter((p) => p.id !== promotion.id)
         );
         fetchAllPromotions();
+      } else if (EC === -8) {
+        setIsShowInsufficientModal(true);
       } else {
         Alert.alert("Failed to purchase promotion");
       }
@@ -164,6 +171,17 @@ export default function PromotionListScreen() {
     }
   };
 
+  const openFWallet = async () => {
+    try {
+      await IntentLauncher.startActivityAsync("android.intent.action.MAIN", {
+        packageName: "com.tommyle1310.FWallet",
+        className: "com.tommyle1310.FWallet.MainActivity",
+      });
+    } catch (error) {
+      console.log("Error opening FWallet:", error);
+    }
+  };
+
   if (isLoading) {
     return <Spinner isVisible isOverlay />;
   }
@@ -215,6 +233,24 @@ export default function PromotionListScreen() {
         </View>
         <View style={styles.promotionList}>{renderPromotions()}</View>
       </View>
+      <FFModal
+        visible={isShowInsufficientModal}
+        onClose={() => setIsShowInsufficientModal(false)}
+      >
+        <View style={styles.modalContent}>
+          <FFText style={styles.modalText}>Insufficient balance</FFText>
+          <FFButton
+            onPress={() => {
+              setIsShowInsufficientModal(false);
+              openFWallet();
+            }}
+            style={styles.modalButton}
+            isLinear
+          >
+            Open FWallet
+          </FFButton>
+        </View>
+      </FFModal>
     </FFSafeAreaView>
   );
 }
@@ -276,5 +312,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#666",
     marginTop: 20,
+  },
+  modalContent: {
+    padding: spacing.md,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  modalText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  modalButton: {
+    minWidth: 120,
+    paddingHorizontal: spacing.md,
   },
 });
