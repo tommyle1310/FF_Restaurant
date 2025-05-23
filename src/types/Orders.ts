@@ -118,6 +118,8 @@ export enum Enum_OrderTrackingInfo {
   DELIVERED = "DELIVERED",
   CANCELLED = "CANCELLED",
   RETURNED = "RETURNED",
+  RESTAURANT_ACCEPTED = "RESTAURANT_ACCEPTED",
+  ON_THE_WAY = "ON_THE_WAY"
 }
 
 export enum Enum_OrderStatus {
@@ -134,4 +136,5 @@ export enum Enum_OrderStatus {
   CANCELLED = "CANCELLED",
   RETURNED = "RETURNED",
   DELIVERY_FAILED = "DELIVERY_FAILED",
+  REJECTED = "REJECTED"
 }

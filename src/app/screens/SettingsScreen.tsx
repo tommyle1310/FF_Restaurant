@@ -16,6 +16,7 @@ import { RootState } from "@/src/store/store";
 import useSettingData from "@/src/data/screens/Settings";
 import FFView from "@/src/components/FFView";
 import { spacing } from "@/src/theme";
+import { clearOrderTracking } from "@/src/store/restaurantOrderTrackingSlice";
 
 type LogoutSreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -96,6 +97,7 @@ const SettingsScreen = () => {
                 <FFButton
                   onPress={() => {
                     dispatch(logout());
+                    dispatch(clearOrderTracking())
                     // dispatch(clear()); // Xóa AsyncStorage
                     navigation.navigate("Login");
                   }}

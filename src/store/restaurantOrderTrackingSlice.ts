@@ -42,20 +42,17 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
     };
     const currentOrders = state.restaurantOrderTracking.orders;
 
-    // Log current state
     console.log("Current restaurant orders before update:", {
       count: currentOrders.length,
       orders: currentOrders.map(mapOrderToLog),
     });
 
-    // Keep all orders, including completed and cancelled
     const existingIndex = currentOrders.findIndex(
       (o) => o.orderId === order.orderId
     );
 
     let updatedOrders: OrderTracking[];
     if (existingIndex !== -1) {
-      // Update existing order
       updatedOrders = [...currentOrders];
       updatedOrders[existingIndex] = order;
       console.log("Updated existing restaurant order:", {
@@ -64,7 +61,6 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
         newStatus: order.status,
       });
     } else {
-      // Add new order
       updatedOrders = [...currentOrders, order];
       console.log("Added new restaurant order:", {
         orderId: order.orderId,
@@ -72,19 +68,27 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
       });
     }
 
-    // Sort orders by updated_at timestamp (most recent first)
+    // Store all orders in Redux
     updatedOrders.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
 
-    // Log final state
+    // Filter only active orders for AsyncStorage
+    const ordersToSave = updatedOrders.filter(
+      (o) =>
+        o.status !== Enum_OrderStatus.DELIVERED &&
+        o.status !== Enum_OrderStatus.CANCELLED
+    );
+
     console.log("Updated restaurant orders:", {
       count: updatedOrders.length,
       orders: updatedOrders.map(mapOrderToLog),
     });
+    console.log("Orders to save in AsyncStorage:", {
+      count: ordersToSave.length,
+      orders: ordersToSave.map(mapOrderToLog),
+    });
 
-    // Save to AsyncStorage
-    await debouncedSaveToStorage(updatedOrders);
-
-    return updatedOrders;
+    await debouncedSaveToStorage(ordersToSave);
+    return updatedOrders; // Return all orders for Redux
   }
 );
 
