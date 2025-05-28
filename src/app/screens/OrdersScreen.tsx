@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
+import { TabView, SceneMap, TabBar } from "react-native-tab-view";
 import { useWindowDimensions } from "react-native";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { colors, spacing, typography, shadows, borderRadius } from "@/src/theme";
@@ -27,6 +27,7 @@ import {
   updateAndSaveOrderTracking,
   removeOrderTracking,
 } from "@/src/store/restaurantOrderTrackingSlice";
+import { useSocket } from "@/src/hooks/useSocket";
 
 type OrderItem = {
   name: string;
@@ -153,11 +154,11 @@ type Styles = {
 const OrderCard = ({
   item,
   onUpdateStatus,
-  showActions = true, // Add this prop to control whether to show action buttons
+  showActions = true,
 }: {
   item: Type_PushNotification_Order;
   onUpdateStatus: (orderId: string, status: string) => Promise<void>;
-  showActions?: boolean; // Make it optional with default true
+  showActions?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -173,6 +174,7 @@ const OrderCard = ({
       DELIVERED: colors.primary,
       CANCELLED: colors.grey,
       REJECTED: colors.grey,
+      READY_FOR_PICKUP: colors.warning,
     };
     return statusColors[status] || colors.grey;
   };
@@ -240,7 +242,6 @@ const OrderCard = ({
         </FFView>
       </View>
 
-      {/* Only show action buttons if showActions is true AND status is PENDING */}
       {showActions && item.status === Enum_OrderStatus.PENDING && (
         <FFView style={styles.buttonGroup}>
           <TouchableOpacity
@@ -280,15 +281,14 @@ const OrderCard = ({
         </View>
       )}
 
-      {/* Only show update button if showActions is true AND status is RESTAURANT_ACCEPTED */}
       {showActions && isExpanded && item.status === Enum_OrderStatus.RESTAURANT_ACCEPTED && (
         <TouchableOpacity
           style={[styles.updateButtonContainer, { marginTop: spacing.md }]}
           onPress={(e) =>
-            handleActionPress(e, () => onUpdateStatus(item.orderId, Enum_OrderStatus.EN_ROUTE))
+            handleActionPress(e, () => onUpdateStatus(item.orderId, Enum_OrderStatus.READY_FOR_PICKUP))
           }
         >
-          <FFText style={{ color: colors.white }}>Mark as Delivering</FFText>
+          <FFText style={{ color: colors.white }}>Mark as Ready for Pickup</FFText>
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -309,6 +309,7 @@ export default function OrderScreen() {
     return state.restaurantOrderTracking.orders;
   });
   const dispatch = useDispatch();
+  const { socket, latestOrder } = useSocket(id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927");
 
   const showModal = useCallback((title: string, subtitle: string) => {
     setModalMessage({ title, subtitle });
@@ -329,17 +330,16 @@ export default function OrderScreen() {
       if (response.data.EC === 0) {
         const apiOrders = response.data.data.orders;
         console.log("Fetched orders:", apiOrders.length);
-        
-        // Only process orders that should be in the current orders tab
+
         const currentOrderStatuses = [
           Enum_OrderStatus.PENDING,
           Enum_OrderStatus.RESTAURANT_ACCEPTED,
           Enum_OrderStatus.EN_ROUTE,
+          Enum_OrderStatus.READY_FOR_PICKUP,
         ];
-        
+
         apiOrders.forEach((order) => {
           if (currentOrderStatuses.includes(order.status)) {
-            // Add/update order in Redux for current orders
             dispatch(
               updateAndSaveOrderTracking({
                 orderId: order.id,
@@ -361,6 +361,8 @@ export default function OrderScreen() {
                   ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
                   : order.status === Enum_OrderStatus.EN_ROUTE
                   ? Enum_OrderTrackingInfo.EN_ROUTE
+                  : order.status === Enum_OrderStatus.READY_FOR_PICKUP
+                  ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
                   : Enum_OrderTrackingInfo.ORDER_PLACED,
                 driver_id: order.driver_id || null,
                 restaurant_id: order.restaurant_id,
@@ -404,8 +406,6 @@ export default function OrderScreen() {
               })
             );
           } else {
-            // Remove order from Redux if it's no longer a current order
-            // This handles cases where an order status changed to DELIVERED, CANCELLED, or REJECTED
             dispatch(removeOrderTracking(order.id));
           }
         });
@@ -486,7 +486,7 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCompletedOrders(formattedOrders);
+        setCompletedOrders(formattedOrders.filter(item => item.status === Enum_OrderStatus.DELIVERED));
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch completed orders");
@@ -564,7 +564,7 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCancelledOrders(formattedOrders);
+        setCancelledOrders(formattedOrders.filter(item => item.status === Enum_OrderStatus.CANCELLED || item.status === Enum_OrderStatus.REJECTED));
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch cancelled orders");
@@ -586,62 +586,62 @@ export default function OrderScreen() {
     initializeOrders();
   }, [id, dispatch]);
 
-  // Monitor Redux orders for updates
   useEffect(() => {
-    if (orders.length > 0) {
-      const latestOrder = orders[orders.length - 1];
-      console.log("Latest order:", latestOrder.orderId, "Status:", latestOrder.status);
-      const currentOrder = orders.find((o) => o.orderId === latestOrder.orderId);
-      if (!currentOrder || currentOrder.status !== latestOrder.status) {
-        showModal(
-          `Order #${latestOrder.orderId.slice(-8)} Updated`,
-          `Status: ${latestOrder.status}`
-        );
-      }
+    if (latestOrder) {
+      console.log("Latest order from socket:", latestOrder.orderId, "Status:", latestOrder.status);
+      // showModal(
+      //   `Order #${latestOrder.orderId.slice(-8)} Updated`,
+      //   `Status: ${latestOrder.status}`
+      // );
     }
-  }, [orders, showModal]);
-  console.log('check orders ', orders);
+  }, [latestOrder, showModal]);
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       await axiosInstance.patch(`/orders/${orderId}/status`, { status: newStatus });
       const order = orders.find((o: Type_PushNotification_Order) => o.orderId === orderId);
-      
+
       if (order) {
-        // If the new status is for current orders, update Redux
         if ([
           Enum_OrderStatus.PENDING,
           Enum_OrderStatus.RESTAURANT_ACCEPTED,
           Enum_OrderStatus.EN_ROUTE,
+          Enum_OrderStatus.READY_FOR_PICKUP,
         ].includes(newStatus as Enum_OrderStatus)) {
           dispatch(
             updateAndSaveOrderTracking({
               ...order,
               status: newStatus as Enum_OrderStatus,
               updated_at: Date.now(),
+              tracking_info: newStatus === Enum_OrderStatus.PENDING
+                ? Enum_OrderTrackingInfo.ORDER_PLACED
+                : newStatus === Enum_OrderStatus.RESTAURANT_ACCEPTED
+                ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
+                : newStatus === Enum_OrderStatus.EN_ROUTE
+                ? Enum_OrderTrackingInfo.EN_ROUTE
+                : newStatus === Enum_OrderStatus.READY_FOR_PICKUP
+                ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
+                : Enum_OrderTrackingInfo.ORDER_PLACED,
             })
           );
         } else {
-          // If the new status is DELIVERED, CANCELLED, or REJECTED, remove from Redux
           dispatch(removeOrderTracking(orderId));
         }
       }
-      
-      // Refresh completed and cancelled orders if status changes to DELIVERED, CANCELLED, or REJECTED
+
       if ([Enum_OrderStatus.DELIVERED].includes(newStatus as Enum_OrderStatus)) {
         await fetchCompletedOrders();
       } else if ([Enum_OrderStatus.CANCELLED, Enum_OrderStatus.REJECTED].includes(newStatus as Enum_OrderStatus)) {
         await fetchCancelledOrders();
       }
-      
-      Alert.alert("Success", `Order status updated to "${newStatus}"`);
+
+      showModal("Success", `Order status updated to "${newStatus}"`);
     } catch (error) {
       console.error("Update status error:", error);
-      Alert.alert("Error", "Failed to update order status");
+      showModal("Error", "Failed to update order status");
     }
   };
 
-  // Separate render functions for each tab to control showActions prop
   const renderCurrentOrder = ({ item }: { item: Type_PushNotification_Order }) => (
     <OrderCard item={item} onUpdateStatus={updateOrderStatus} showActions={true} />
   );
@@ -660,6 +660,7 @@ export default function OrderScreen() {
         Enum_OrderStatus.PENDING,
         Enum_OrderStatus.RESTAURANT_ACCEPTED,
         Enum_OrderStatus.EN_ROUTE,
+        Enum_OrderStatus.READY_FOR_PICKUP,
       ].includes(order.status)
     );
     console.log("Current orders:", currentOrders.map((o) => ({ id: o.orderId, status: o.status })));
@@ -735,11 +736,12 @@ export default function OrderScreen() {
   return (
     <FFSafeAreaView style={styles.container}>
       <TabView
+      style={{width: '100%'}}
         navigationState={{ index, routes }}
         renderScene={renderScene}
         onIndexChange={setIndex}
         initialLayout={{ width: layout.width }}
-        renderTabBar={(props: TabBarProps<any>) => (
+        renderTabBar={(props) => (
           <TabBar
             {...props}
             style={styles.tabBar}
@@ -748,6 +750,7 @@ export default function OrderScreen() {
             indicatorStyle={styles.tabIndicator}
             tabStyle={styles.tab}
             scrollEnabled
+            // ={styles.tabLabel}
           />
         )}
       />
@@ -763,7 +766,6 @@ export default function OrderScreen() {
     </FFSafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create<Styles>({
   container: {
@@ -799,7 +801,7 @@ const styles = StyleSheet.create<Styles>({
     marginBottom: spacing.md,
   },
   amount: {
-    fontSize: typography.fontSize.xl,
+    fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
@@ -853,14 +855,20 @@ const styles = StyleSheet.create<Styles>({
     borderRadius: borderRadius.sm,
   },
   updateButtonContainer: {
-    marginTop: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.sm,
   },
   tabBar: {
     backgroundColor: colors.background,
+    width: '100%',
     ...shadows.xs,
   },
   tab: {
-    height: spacing.xl + spacing.md,
+    // width: "auto",
+    paddingHorizontal: spacing.sm,
   },
   tabIndicator: {
     backgroundColor: colors.primary,
@@ -874,7 +882,6 @@ const styles = StyleSheet.create<Styles>({
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
-    borderRadius: spacing.md,
     alignItems: "center",
     paddingVertical: spacing.xl,
   },

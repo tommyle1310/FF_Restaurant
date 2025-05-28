@@ -183,10 +183,10 @@ const MenuManagement = () => {
         {menuItems?.map((item) => (
           <FFView
             onPress={() => {
-              setSelectedMenuItemId(item.id);
               navigation.navigate("MenuItemForm", {
-                menuItemId: selectedMenuItemId,
+                menuItemId: item.id, // Use item.id directly
               });
+              setSelectedMenuItemId(item.id); // Optional, if needed for other logic
             }}
             key={item.id}
             style={styles.menuItem}

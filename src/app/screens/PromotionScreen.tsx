@@ -1,4 +1,11 @@
-import { View, Text, FlatList, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSelector, useDispatch } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
@@ -13,7 +20,6 @@ import FFText from "@/src/components/FFText";
 import FFModal from "@/src/components/FFModal";
 import Spinner from "@/src/components/FFSpinner";
 import IntentLauncher from "expo-intent-launcher";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { spacing } from "@/src/theme";
 
 interface Promotion {
@@ -21,6 +27,7 @@ interface Promotion {
   name: string;
   description: string;
   start_date: string;
+  promotion_cost_price?: number;
   end_date: string;
   status: string;
   [key: string]: any;
@@ -34,33 +41,19 @@ type PromotionScreenNavigationProps = StackNavigationProp<
 export default function PromotionListScreen() {
   const navigation = useNavigation<PromotionScreenNavigationProps>();
   const dispatch = useDispatch();
-  const { restaurant_id, promotions } = useSelector((state: RootState) => state.auth);
+  const { restaurant_id } = useSelector((state: RootState) => state.auth);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPromotions, setCurrentPromotions] = useState<Promotion[]>([]);
-  const [flashFoodPromotions, setFlashFoodPromotions] = useState<Promotion[]>([]);
+  const [flashFoodPromotions, setFlashFoodPromotions] = useState<Promotion[]>(
+    []
+  );
   const [expiredPromotions, setExpiredPromotions] = useState<Promotion[]>([]);
-  const [activeTab, setActiveTab] = useState<"Current" | "FlashFood" | "Expired">("Current");
+  const [activeTab, setActiveTab] = useState<
+    "Current" | "FlashFood" | "Expired"
+  >("Current");
   const [isShowInsufficientModal, setIsShowInsufficientModal] = useState(false);
-  const [isShowPromotionExpiredModal, setIsShowPromotionExpiredModal] = useState(false);
-
-  // Lưu và khôi phục promotions từ AsyncStorage
-  const savePromotions = async (promotions: Promotion[]) => {
-    try {
-      await AsyncStorage.setItem("currentPromotions", JSON.stringify(promotions));
-    } catch (error) {
-      console.error("Error saving promotions:", error);
-    }
-  };
-
-  const loadPromotions = async () => {
-    try {
-      const data = await AsyncStorage.getItem("currentPromotions");
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error("Error loading promotions:", error);
-      return [];
-    }
-  };
+  const [isShowPromotionExpiredModal, setIsShowPromotionExpiredModal] =
+    useState(false);
 
   // Cập nhật Redux store
   const updatePromotionsInStore = (newPromotions: Promotion[]) => {
@@ -73,35 +66,46 @@ export default function PromotionListScreen() {
   const fetchAllPromotions = async () => {
     setIsLoading(true);
     try {
-      // Lấy tất cả promotions có sẵn
-      const response = await axiosInstance.get("/promotions");
+      // Lấy tất cả promotions từ API
+      const response = await axiosInstance.get("/promotions/valid");
       const responseData = response.data;
       if (responseData.EC !== 0) {
         console.error("Error fetching available promotions:", responseData.EM);
         return;
       }
       const allPromotions = responseData.data;
-      console.log("check available promotions", allPromotions);
-
-      // Phân loại promotions
+  
+        // Phân loại promotions
       const currentTime = Date.now() / 1000;
-      const current = currentPromotions; // Giữ currentPromotions từ state hoặc AsyncStorage
+      const current: Promotion[] = [];
       const expired: Promotion[] = [];
       const flashFood: Promotion[] = [];
-
+  
       allPromotions.forEach((promo: Promotion) => {
-        const isApplied = current.some((p: Promotion) => p.id === promo.id);
         const isExpired = parseInt(promo.end_date) < currentTime;
-
-        if (isApplied && isExpired) {
+        const isCurrentRestaurant =
+          promo.restaurants &&
+          promo.restaurants.some(
+            (restaurantGroup: { id: string }) =>
+              restaurantGroup.id === restaurant_id
+          );
+  
+        if (isExpired) {
           expired.push(promo);
-        } else if (!isApplied && !isExpired) {
+        } else if (isCurrentRestaurant) {
+          current.push(promo);
+        } else {
           flashFood.push(promo);
         }
       });
-
+  
+      // Cập nhật state
+      setCurrentPromotions(current);
       setFlashFoodPromotions(flashFood);
       setExpiredPromotions(expired);
+  
+      // Cập nhật Redux store
+      updatePromotionsInStore(current);
     } catch (error) {
       console.error("Error in fetchAllPromotions:", error);
     } finally {
@@ -112,73 +116,42 @@ export default function PromotionListScreen() {
   const handleBuyPromotion = async (promotion: Promotion) => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.post("/restaurants/apply-promotion", {
-        restaurantId: restaurant_id,
-        promotionId: promotion.id,
-      });
+      const response = await axiosInstance.post(
+        "/restaurants/apply-promotion",
+        {
+          restaurantId: restaurant_id,
+          promotionId: promotion.id,
+        }
+      );
       const responseData = response.data;
 
       if (!responseData || typeof responseData.EC !== "number") {
         throw new Error("Invalid response format");
       }
 
-      const { EC, EM, data } = responseData;
+      const { EC, EM } = responseData;
 
       if (EC === 0) {
-        console.log("check step: EC === 0");
-
-        // Cập nhật currentPromotions
-        let updatedCurrentPromotions = [...currentPromotions];
-        if (data.restaurant.promotions) {
-          // Giả sử data.restaurant.promotions chứa danh sách promotions đầy đủ
-          updatedCurrentPromotions = data.restaurant.promotions;
-        } else {
-          // Nếu không có promotions trong response, thêm promotion vừa mua
-          updatedCurrentPromotions = [...currentPromotions, promotion];
-        }
-        const updatedFlashFoodPromotions = flashFoodPromotions.filter(
-          (p) => p.id !== promotion.id
-        );
-        console.log("check step: updated currentPromotions", updatedCurrentPromotions);
-        console.log("check step: updated flashFoodPromotions", updatedFlashFoodPromotions);
-
-        // Cập nhật state
-        setCurrentPromotions(updatedCurrentPromotions);
-        setFlashFoodPromotions(updatedFlashFoodPromotions);
-
-        // Lưu vào AsyncStorage
-        await savePromotions(updatedCurrentPromotions);
-
-        // Cập nhật Redux store
-        updatePromotionsInStore(updatedCurrentPromotions);
-
-        // Làm mới danh sách promotions
-        try {
-          console.log("check step: calling fetchAllPromotions");
-          await fetchAllPromotions();
-          console.log("check step: fetchAllPromotions completed");
-        } catch (fetchError) {
-          console.error("Error in fetchAllPromotions:", fetchError);
-        }
+        // Làm mới danh sách promotions từ API
+        await fetchAllPromotions();
       } else if (EC === -8) {
-        console.log("check step: EC === -8, showing insufficient modal");
         setIsShowInsufficientModal(true);
       } else if (EC === -9) {
-        console.log("check step: EC === -9, showing expired modal");
         setIsShowPromotionExpiredModal(true);
       } else {
-        console.log("check step: EC else, showing alert", EC);
         Alert.alert("Failed to purchase promotion", EM || "Unknown error");
       }
     } catch (err: any) {
       console.error("Error in handleBuyPromotion:", err);
-      Alert.alert("Failed to purchase promotion", err.message || "An unexpected error occurred");
+      Alert.alert(
+        "Failed to purchase promotion",
+        err.message || "An unexpected error occurred"
+      );
     } finally {
       setIsLoading(false);
-      console.log("check promo", promotion);
     }
   };
-
+  // console.log('check curent promo ', flashFoodPromotions?.)
   const renderPromotionItem = (
     { item }: { item: Promotion },
     type: "Current" | "FlashFood" | "Expired"
@@ -199,12 +172,16 @@ export default function PromotionListScreen() {
       {type === "FlashFood" && (
         <FFButton
           variant={
-            currentPromotions.some((p) => p.id === item.id) ? "disabled" : "primary"
+            currentPromotions.some((p) => p.id === item.id)
+              ? "disabled"
+              : "primary"
           }
           style={{ width: "100%", flex: 1 }}
           onPress={() => handleBuyPromotion(item)}
         >
-          {currentPromotions.some((p) => p.id === item.id) ? "Purchased" : "Purchase"}
+          {currentPromotions.some((p) => p.id === item.id)
+            ? "Purchased"
+            : `$${item?.promotion_cost_price}`}
         </FFButton>
       )}
     </View>
@@ -248,29 +225,8 @@ export default function PromotionListScreen() {
   };
 
   useEffect(() => {
-    const initialize = async () => {
-      setIsLoading(true);
-      try {
-        // Khôi phục currentPromotions từ AsyncStorage
-        const savedPromotions = await loadPromotions();
-        setCurrentPromotions(savedPromotions);
-
-        // Lấy promotions từ Redux store (nếu có)
-        if (promotions && promotions.length > 0) {
-          setCurrentPromotions(promotions);
-          await savePromotions(promotions);
-        }
-
-        // Lấy danh sách promotions có sẵn
-        await fetchAllPromotions();
-      } catch (error) {
-        console.error("Error initializing promotions:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    initialize();
-  }, [restaurant_id, promotions]);
+    fetchAllPromotions();
+  }, [restaurant_id]);
 
   if (isLoading) {
     return <Spinner isVisible isOverlay />;
@@ -352,6 +308,7 @@ export default function PromotionListScreen() {
     </FFSafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,

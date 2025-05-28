@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, TouchableOpacity, ScrollView, StatusBar } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
@@ -35,6 +35,13 @@ const HomeScreen = () => {
   const { address, restaurant_name, avatar, status, restaurant_id } =
     useSelector((state: RootState) => state.auth);
 
+  const [dailyStats, setDailyStats] = useState({
+    revenue: 0,
+    orders: 0,
+    topDish: "",
+  });
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
   const handleToggleAvailability = async () => {
     try {
       const response = await axiosInstance.patch(
@@ -64,12 +71,64 @@ const HomeScreen = () => {
     }
   };
 
-  // Daily stats section data
-  const dailyStats = {
-    revenue: 10,
-    orders: "10",
-    topDish: "Com Dai",
+  const fetchDailyStats = async () => {
+    setIsLoadingStats(true);
+    try {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      const startDateStr = startOfDay.toISOString().split("T")[0];
+      const endDateStr = endOfDay.toISOString().split("T")[0];
+
+      const response = await axiosInstance.get(
+        `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
+      );
+
+      if (response.data.EC === 0) {
+        const statsData = response.data.data;
+        
+        // Calculate total revenue and orders
+        const totalStats = statsData.reduce(
+          (acc: any, record: any) => ({
+            revenue: acc.revenue + (record.total_revenue || 0),
+            orders: acc.orders + (record.total_orders || 0),
+          }),
+          { revenue: 0, orders: 0 }
+        );
+
+        // Find the most popular item
+        let topDish = "";
+        let maxQuantity = 0;
+        statsData.forEach((record: any) => {
+          if (record.popular_items) {
+            record.popular_items.forEach((item: any) => {
+              if (item.quantity > maxQuantity) {
+                maxQuantity = item.quantity;
+                topDish = item.name;
+              }
+            });
+          }
+        });
+
+        setDailyStats({
+          revenue: totalStats.revenue,
+          orders: totalStats.orders,
+          topDish: topDish || "No data",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching daily stats:", error);
+    } finally {
+      setIsLoadingStats(false);
+    }
   };
+
+  useEffect(() => {
+    if (restaurant_id) {
+      fetchDailyStats();
+    }
+  }, [restaurant_id]);
 
   // Menu grid items
   const menuItems = [
@@ -211,7 +270,7 @@ const HomeScreen = () => {
                     marginTop: 2,
                   }}
                 >
-                  ${dailyStats.revenue}
+                  ${isLoadingStats ? "..." : dailyStats.revenue.toFixed(2)}
                 </FFText>
               </View>
             </View>
@@ -244,7 +303,7 @@ const HomeScreen = () => {
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <FFText style={{ color: "#eee" }}>Số đơn/ngày</FFText>
+                <FFText style={{ color: "#eee" }}>Orders Today</FFText>
                 <FFText
                   style={{
                     fontWeight: "600",
@@ -252,7 +311,7 @@ const HomeScreen = () => {
                     marginTop: 2,
                   }}
                 >
-                  {dailyStats.orders}
+                  {isLoadingStats ? "..." : dailyStats.orders}
                 </FFText>
               </View>
             </View>
@@ -281,7 +340,7 @@ const HomeScreen = () => {
                 <Ionicons name="restaurant" size={20} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <FFText style={{ color: "#eee" }}>Món bán chạy</FFText>
+                <FFText style={{ color: "#eee" }}>Top Selling Item</FFText>
                 <FFText
                   style={{
                     fontWeight: "600",
@@ -289,7 +348,7 @@ const HomeScreen = () => {
                     marginTop: 2,
                   }}
                 >
-                  {dailyStats.topDish}
+                  {isLoadingStats ? "..." : dailyStats.topDish}
                 </FFText>
               </View>
             </View>

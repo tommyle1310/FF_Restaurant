@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   },
   pickerContainer: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   pickerColumn: {
@@ -206,7 +206,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
-    minWidth: 100,
     alignItems: "center",
   },
   submitButton: {

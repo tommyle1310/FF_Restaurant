@@ -43,7 +43,7 @@ import SupportCenterScreen from "../app/screens/SupportCenterScreen";
 import FChatScreen from "../app/screens/FChatScreen";
 import CreateInquiryScreen from "../app/screens/CreateInquiryScreen";
 import StatisticsScreen from "../app/screens/StatisticsScreen";
-import { spacing } from "../theme";
+import { spacing, typography } from "../theme";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -115,6 +115,7 @@ const BottomTabs = () => {
   );
 };
 
+
 const MainStackScreen = () => {
   const [selectedLocation, setSelectedLocation] = useState({
     lat: 10.826411,
@@ -126,13 +127,17 @@ const MainStackScreen = () => {
   const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] = useState(false);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
 
-  // Memoize sendPushNotification with correct signature
   const sendPushNotification = useCallback(
     (order: Type_PushNotification_Order, expoPushToken?: { data: string }) => {
       console.log("Sending push notification for order:", order.orderId);
       if (expoPushToken) {
         // Implement Expo push notification logic
-        // Example:
+        console.log("Push notification payload:", {
+          to: expoPushToken.data,
+          title: `Order #${order.orderId.slice(-8)}`,
+          body: `Status: ${order.status}`,
+        });
+        // Uncomment to enable actual push notification
         // fetch("https://exp.host/--/api/v2/push/send", {
         //   method: "POST",
         //   headers: { "Content-Type": "application/json" },
@@ -143,28 +148,30 @@ const MainStackScreen = () => {
         //   }),
         // });
       }
+      // Trigger FFToast for incoming orders
+      if (order.status === "PENDING") {
+        setIsShowIncomingOrderToast(true);
+      }
     },
     []
   );
 
-  // Use socket
   const { socket, latestOrder: socketLatestOrder } = useSocket(
     restaurant_id || "",
     setOrders,
     sendPushNotification
   );
 
-  // Handle orders and latestOrder updates
   useEffect(() => {
     if (socketLatestOrder) {
       setLatestOrder((prev) => {
         if (
           !prev ||
           prev.orderId !== socketLatestOrder.orderId ||
-          prev.status !== socketLatestOrder.status
+          prev.status !== socketLatestOrder.status ||
+          prev.updated_at !== socketLatestOrder.updated_at
         ) {
           console.log("Updating latestOrder:", socketLatestOrder.orderId);
-          setIsShowIncomingOrderToast(true);
           return socketLatestOrder;
         }
         return prev;
@@ -188,7 +195,6 @@ const MainStackScreen = () => {
     socket?.emit("restaurantAcceptWithAvailableDrivers", requestBody);
     setIsShowIncomingOrderToast(false);
   }, [latestOrder, allDrivers, socket]);
-
   return (
     <>
       <MainStack.Navigator>
@@ -263,18 +269,30 @@ const MainStackScreen = () => {
         <FFText>Incoming Order</FFText>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <FFText fontSize="sm" fontWeight="500">
+            <FFText style={{ fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.medium }}>
               Total:
             </FFText>
-            <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
+            <FFText
+              style={{
+                fontSize: typography.fontSize.sm,
+                fontFamily: typography.fontFamily.bold,
+                color: "#63c550",
+              }}
+            >
               ${latestOrder?.total_amount ?? 0}
             </FFText>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
+            <FFText
+              style={{
+                fontSize: typography.fontSize.sm,
+                fontFamily: typography.fontFamily.bold,
+                color: "#63c550",
+              }}
+            >
               {latestOrder?.order_items?.length || 0}
             </FFText>
-            <FFText fontSize="sm" fontWeight="500">
+            <FFText style={{ fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.medium }}>
               items
             </FFText>
           </View>
@@ -283,6 +301,7 @@ const MainStackScreen = () => {
     </>
   );
 };
+
 
 const AppNavigator = () => {
   const token = useSelector((state: RootState) => state.auth.accessToken);

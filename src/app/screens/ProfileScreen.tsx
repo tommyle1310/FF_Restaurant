@@ -135,6 +135,7 @@ const ProfileScreen = () => {
         );
         const { EC, EM, data } = response.data;
         if (EC === 0) {
+          console.log('check data' , data)
           setReviewsData(data);
         } else {
           setErrorMessage(EM);
@@ -167,7 +168,7 @@ const ProfileScreen = () => {
                     <IconAntDesign name="star" size={12} color={colors.white} />
                   </View>
                   <FFText>
-                    {reviewsData?.average_delivery_rating?.toFixed(1) || "0.0"}
+                    {reviewsData?.average_food_rating?.toFixed(1) || "0.0"}
                   </FFText>
                   <FFText fontSize="sm" fontWeight="400">
                     Ratings
@@ -183,7 +184,7 @@ const ProfileScreen = () => {
                   </View>
                   <FFText>{reviewsData?.total_reviews || 0}</FFText>
                   <FFText fontSize="sm" fontWeight="400">
-                    Total Reviews
+                    Reviews
                   </FFText>
                 </View>
                 <View style={styles.overviewCard}>
@@ -301,6 +302,7 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: spacing.sm,
+    marginTop: spacing.md
   },
   overviewContainer: {
     flexDirection: "row",
