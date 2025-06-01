@@ -69,9 +69,14 @@ const StatisticsScreen = () => {
   });
   const [endDate, setEndDate] = useState(() => {
     const now = new Date();
-    now.setHours(23, 59, 59, 999);
-    return now;
+    const tomorrow = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1
+    );
+    return tomorrow;
   });
+
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [tempStartYear, setTempStartYear] = useState(startDate.getFullYear());
@@ -121,31 +126,35 @@ const StatisticsScreen = () => {
     });
   }, [statsRecords, activeTab]);
 
-
   useEffect(() => {
     if (restaurant_id) {
       fetchRestaurantStats();
     }
   }, [restaurant_id, startDate, endDate]);
- 
 
   const fetchRestaurantStats = async () => {
     setIsLoading(true);
     try {
       const startDateStr = startDate.toISOString().split("T")[0];
-      const endDateStr = endDate.toISOString().split("T")[0];
+
+      // ✅ Điều chỉnh endDate thành +1 ngày để đảm bảo lọc đúng đến hết ngày được chọn
+      const adjustedEndDate = new Date(endDate);
+      adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
+      const endDateStr = adjustedEndDate.toISOString().split("T")[0];
+
       console.log(
         `[Request] /restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
       );
+
       const res = await axiosInstance.get(
         `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
       );
       const { EC, EM, data } = res.data;
+
       if (EC === 0) {
         console.log("Restaurant stats data:", data);
         setStatsRecords(data);
 
-        // Tính tổng các chỉ số
         const totalStats = data.reduce(
           (acc: StatsData, record: any) => ({
             total_orders: acc.total_orders + (record.total_orders || 0),
@@ -223,267 +232,286 @@ const StatisticsScreen = () => {
     });
   };
 
-
   return (
     <FFSafeAreaView>
-     <ScrollView>
-     <LinearGradient
-        colors={["#63c550", "#a3d98f"]}
-        start={[0, 0]}
-        end={[1, 0]}
-        style={styles.headerGradient}
-      >
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingTop: 16,
-            alignItems: "center",
-            position: "relative",
-          }}
+      <ScrollView>
+        <LinearGradient
+          colors={["#63c550", "#a3d98f"]}
+          start={[0, 0]}
+          end={[1, 0]}
+          style={styles.headerGradient}
         >
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <IconIonicons name="chevron-back" color={"#fff"} size={24} />
-          </TouchableOpacity>
-        </View>
-        <View
-          style={{
-            alignItems: "center",
-            justifyContent: "center",
-            gap: spacing.sm,
-          }}
-        >
-          <FFText style={styles.headerText}>Restaurant Statistics</FFText>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <TouchableOpacity onPress={() => setShowStartPicker(true)}>
-              <FFText fontSize="sm" fontWeight="500" style={{ color: "#fff" }}>
-                {formatDate(startDate)}
-              </FFText>
-            </TouchableOpacity>
-            <FFText fontSize="sm" style={{ color: "#fff" }}>
-              -
-            </FFText>
-            <TouchableOpacity onPress={() => setShowEndPicker(true)}>
-              <FFText fontSize="sm" fontWeight="500" style={{ color: "#fff" }}>
-                {formatDate(endDate)}
-              </FFText>
-            </TouchableOpacity>
-          </View>
-          <FFText fontWeight="700" fontSize="lg" style={{ color: "#fff" }}>
-            ${statsData.total_revenue.toFixed(2)}
-          </FFText>
-        </View>
-      </LinearGradient>
-
-      {/* Summary Cards */}
-      <View
-        style={{ marginTop: -32, padding: 16, flexDirection: "row", gap: 12 }}
-      >
-        <View style={styles.summaryCard}>
-          <FFText>Orders</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {statsData.total_orders}
-          </FFText>
-        </View>
-        <View style={styles.summaryCard}>
-          <FFText>Revenue</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            ${statsData.total_revenue.toFixed(2)}
-          </FFText>
-        </View>
-      </View>
-
-      {/* Loading Indicator */}
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#63c550" />
-        </View>
-      )}
-
-      {/* No Data Message */}
-      {!isLoading && statsRecords.length === 0 && (
-        <View style={styles.noDataContainer}>
-          <FFText>No statistics available for the selected period.</FFText>
-        </View>
-      )}
-
-      {/* Start Date Picker Modal */}
-      <Modal visible={showStartPicker} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.pickerContainer}>
-            <FFText style={styles.modalTitle}>Select Start Date</FFText>
-            <View style={styles.pickerRow}>
-              <Picker
-                selectedValue={tempStartYear}
-                onValueChange={(itemValue) => setTempStartYear(itemValue)}
-                style={styles.picker}
-              >
-                {years.map((year) => (
-                  <Picker.Item key={year} label={`${year}`} value={year} />
-                ))}
-              </Picker>
-              <Picker
-                selectedValue={tempStartMonth}
-                onValueChange={(itemValue) => setTempStartMonth(itemValue)}
-                style={styles.picker}
-              >
-                {months.map((month, index) => (
-                  <Picker.Item key={index} label={month} value={index} />
-                ))}
-              </Picker>
-              <Picker
-                selectedValue={tempStartDay}
-                onValueChange={(itemValue) => setTempStartDay(itemValue)}
-                style={styles.picker}
-              >
-                {days.map((day) => (
-                  <Picker.Item key={day} label={`${day}`} value={day} />
-                ))}
-              </Picker>
-            </View>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                onPress={() => setShowStartPicker(false)}
-                style={styles.cancelButton}
-              >
-                <FFText>Cancel</FFText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onStartDateConfirm}
-                style={styles.confirmButton}
-              >
-                <FFText style={{ color: "#fff" }}>Confirm</FFText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      <Modal visible={showEndPicker} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.pickerContainer}>
-            <FFText style={styles.modalTitle}>Select End Date</FFText>
-            <View style={styles.pickerRow}>
-              <Picker
-                selectedValue={tempEndYear}
-                onValueChange={(itemValue) => setTempEndYear(itemValue)}
-                style={styles.picker}
-              >
-                {years.map((year) => (
-                  <Picker.Item key={year} label={`${year}`} value={year} />
-                ))}
-              </Picker>
-              <Picker
-                selectedValue={tempEndMonth}
-                onValueChange={(itemValue) => setTempEndMonth(itemValue)}
-                style={styles.picker}
-              >
-                {months.map((month, index) => (
-                  <Picker.Item key={index} label={month} value={index} />
-                ))}
-              </Picker>
-              <Picker
-                selectedValue={tempEndDay}
-                onValueChange={(itemValue) => setTempEndDay(itemValue)}
-                style={styles.picker}
-              >
-                {days.map((day) => (
-                  <Picker.Item key={day} label={`${day}`} value={day} />
-                ))}
-              </Picker>
-            </View>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                onPress={() => setShowEndPicker(false)}
-                style={styles.cancelButton}
-              >
-                <FFText>Cancel</FFText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onEndDateConfirm}
-                style={styles.confirmButton}
-              >
-                <FFText style={{ color: "#fff" }}>Confirm</FFText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      {/* Tabs */}
-      {statsRecords.length > 0 && (
-        <>
           <View
             style={{
-              flexDirection: "row",
-              justifyContent: "space-around",
-              marginVertical: 16,
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              alignItems: "center",
+              position: "relative",
             }}
           >
             <TouchableOpacity
-              style={[styles.tab, activeTab === "revenue" && styles.activeTab]}
-              onPress={() => handleTabChange("revenue")}
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
             >
-              <FFText
-                style={
-                  activeTab === "revenue"
-                    ? styles.activeTabText
-                    : styles.tabText
-                }
-              >
-                Revenue
-              </FFText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === "tips" && styles.activeTab]}
-              onPress={() => handleTabChange("tips")}
-            >
-              <FFText
-                style={
-                  activeTab === "tips" ? styles.activeTabText : styles.tabText
-                }
-              >
-                Tips
-              </FFText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === "hours" && styles.activeTab]}
-              onPress={() => handleTabChange("hours")}
-            >
-              <FFText
-                style={
-                  activeTab === "hours" ? styles.activeTabText : styles.tabText
-                }
-              >
-                Hours
-              </FFText>
+              <IconIonicons name="chevron-back" color={"#fff"} size={24} />
             </TouchableOpacity>
           </View>
-
-          {/* Chart */}
-          <FFBarChart data={chartData} labels={chartLabels} />
-        </>
-      )}
-
-      {/* Popular Items */}
-      {statsRecords.length > 0 && (
-        <View style={{ padding: 16 }}>
-          <FFText style={{ fontSize: 18, fontWeight: "bold", marginBottom: 8 }}>
-            Popular Items
-          </FFText>
-          {statsRecords.map((record, index) =>
-            record.popular_items.map((item: any, itemIndex: number) => (
-              <View key={`${index}-${itemIndex}`} style={styles.itemContainer}>
-                <FFText>{item.name}</FFText>
-                <FFText>
-                  Qty: {item.quantity} | ${item.revenue.toFixed(2)}
+          <View
+            style={{
+              alignItems: "center",
+              justifyContent: "center",
+              gap: spacing.sm,
+            }}
+          >
+            <FFText style={styles.headerText}>Restaurant Statistics</FFText>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <TouchableOpacity onPress={() => setShowStartPicker(true)}>
+                <FFText
+                  fontSize="sm"
+                  fontWeight="500"
+                  style={{ color: "#fff" }}
+                >
+                  {formatDate(startDate)}
                 </FFText>
-              </View>
-            ))
-          )}
+              </TouchableOpacity>
+              <FFText fontSize="sm" style={{ color: "#fff" }}>
+                -
+              </FFText>
+              <TouchableOpacity onPress={() => setShowEndPicker(true)}>
+                <FFText
+                  fontSize="sm"
+                  fontWeight="500"
+                  style={{ color: "#fff" }}
+                >
+                  {formatDate(endDate)}
+                </FFText>
+              </TouchableOpacity>
+            </View>
+            <FFText fontWeight="700" fontSize="lg" style={{ color: "#fff" }}>
+              ${statsData.total_revenue.toFixed(2)}
+            </FFText>
+          </View>
+        </LinearGradient>
+
+        {/* Summary Cards */}
+        <View
+          style={{ marginTop: -32, padding: 16, flexDirection: "row", gap: 12 }}
+        >
+          <View style={styles.summaryCard}>
+            <FFText>Orders</FFText>
+            <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+              {statsData.total_orders}
+            </FFText>
+          </View>
+          <View style={styles.summaryCard}>
+            <FFText>Revenue</FFText>
+            <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+              ${statsData.total_revenue.toFixed(2)}
+            </FFText>
+          </View>
         </View>
-      )}
-     </ScrollView>
+
+        {/* Loading Indicator */}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#63c550" />
+          </View>
+        )}
+
+        {/* No Data Message */}
+        {!isLoading && statsRecords.length === 0 && (
+          <View style={styles.noDataContainer}>
+            <FFText>No statistics available for the selected period.</FFText>
+          </View>
+        )}
+
+        {/* Start Date Picker Modal */}
+        <Modal visible={showStartPicker} transparent animationType="slide">
+          <View style={styles.modalContainer}>
+            <View style={styles.pickerContainer}>
+              <FFText style={styles.modalTitle}>Select Start Date</FFText>
+              <View style={styles.pickerRow}>
+                <Picker
+                  selectedValue={tempStartYear}
+                  onValueChange={(itemValue) => setTempStartYear(itemValue)}
+                  style={styles.picker}
+                >
+                  {years.map((year) => (
+                    <Picker.Item key={year} label={`${year}`} value={year} />
+                  ))}
+                </Picker>
+                <Picker
+                  selectedValue={tempStartMonth}
+                  onValueChange={(itemValue) => setTempStartMonth(itemValue)}
+                  style={styles.picker}
+                >
+                  {months.map((month, index) => (
+                    <Picker.Item key={index} label={month} value={index} />
+                  ))}
+                </Picker>
+                <Picker
+                  selectedValue={tempStartDay}
+                  onValueChange={(itemValue) => setTempStartDay(itemValue)}
+                  style={styles.picker}
+                >
+                  {days.map((day) => (
+                    <Picker.Item key={day} label={`${day}`} value={day} />
+                  ))}
+                </Picker>
+              </View>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  onPress={() => setShowStartPicker(false)}
+                  style={styles.cancelButton}
+                >
+                  <FFText>Cancel</FFText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={onStartDateConfirm}
+                  style={styles.confirmButton}
+                >
+                  <FFText style={{ color: "#fff" }}>Confirm</FFText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+        <Modal visible={showEndPicker} transparent animationType="slide">
+          <View style={styles.modalContainer}>
+            <View style={styles.pickerContainer}>
+              <FFText style={styles.modalTitle}>Select End Date</FFText>
+              <View style={styles.pickerRow}>
+                <Picker
+                  selectedValue={tempEndYear}
+                  onValueChange={(itemValue) => setTempEndYear(itemValue)}
+                  style={styles.picker}
+                >
+                  {years.map((year) => (
+                    <Picker.Item key={year} label={`${year}`} value={year} />
+                  ))}
+                </Picker>
+                <Picker
+                  selectedValue={tempEndMonth}
+                  onValueChange={(itemValue) => setTempEndMonth(itemValue)}
+                  style={styles.picker}
+                >
+                  {months.map((month, index) => (
+                    <Picker.Item key={index} label={month} value={index} />
+                  ))}
+                </Picker>
+                <Picker
+                  selectedValue={tempEndDay}
+                  onValueChange={(itemValue) => setTempEndDay(itemValue)}
+                  style={styles.picker}
+                >
+                  {days.map((day) => (
+                    <Picker.Item key={day} label={`${day}`} value={day} />
+                  ))}
+                </Picker>
+              </View>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  onPress={() => setShowEndPicker(false)}
+                  style={styles.cancelButton}
+                >
+                  <FFText>Cancel</FFText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={onEndDateConfirm}
+                  style={styles.confirmButton}
+                >
+                  <FFText style={{ color: "#fff" }}>Confirm</FFText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+        {/* Tabs */}
+        {statsRecords.length > 0 && (
+          <>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-around",
+                marginVertical: 16,
+              }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  activeTab === "revenue" && styles.activeTab,
+                ]}
+                onPress={() => handleTabChange("revenue")}
+              >
+                <FFText
+                  style={
+                    activeTab === "revenue"
+                      ? styles.activeTabText
+                      : styles.tabText
+                  }
+                >
+                  Revenue
+                </FFText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === "tips" && styles.activeTab]}
+                onPress={() => handleTabChange("tips")}
+              >
+                <FFText
+                  style={
+                    activeTab === "tips" ? styles.activeTabText : styles.tabText
+                  }
+                >
+                  Tips
+                </FFText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === "hours" && styles.activeTab]}
+                onPress={() => handleTabChange("hours")}
+              >
+                <FFText
+                  style={
+                    activeTab === "hours"
+                      ? styles.activeTabText
+                      : styles.tabText
+                  }
+                >
+                  Hours
+                </FFText>
+              </TouchableOpacity>
+            </View>
+
+            {/* Chart */}
+            <FFBarChart data={chartData} labels={chartLabels} />
+          </>
+        )}
+
+        {/* Popular Items */}
+        {statsRecords.length > 0 && (
+          <View style={{ padding: 16 }}>
+            <FFText
+              style={{ fontSize: 18, fontWeight: "bold", marginBottom: 8 }}
+            >
+              Popular Items
+            </FFText>
+            {statsRecords.map((record, index) =>
+              record.popular_items.map((item: any, itemIndex: number) => (
+                <View
+                  key={`${index}-${itemIndex}`}
+                  style={styles.itemContainer}
+                >
+                  <FFText>{item.name}</FFText>
+                  <FFText>
+                    Qty: {item.quantity} | ${item.revenue.toFixed(2)}
+                  </FFText>
+                </View>
+              ))
+            )}
+          </View>
+        )}
+      </ScrollView>
     </FFSafeAreaView>
   );
 };

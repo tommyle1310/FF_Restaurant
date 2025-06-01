@@ -32,7 +32,7 @@ import FFToast from "../components/FFToast";
 import FFText from "../components/FFText";
 import Spinner from "../components/FFSpinner";
 import { usePushNotifications } from "../hooks/usePushNotifications";
-import { View } from "react-native";
+import { TouchableOpacity, View } from "react-native";
 import MenuItemFormScreen from "../app/screens/MenuItemFormScreen";
 import { Type_Address } from "../types/Address";
 import PaymentMethodScreen from "../app/screens/PaymentMethodScreen";
@@ -44,6 +44,9 @@ import FChatScreen from "../app/screens/FChatScreen";
 import CreateInquiryScreen from "../app/screens/CreateInquiryScreen";
 import StatisticsScreen from "../app/screens/StatisticsScreen";
 import { spacing, typography } from "../theme";
+import axiosInstance from "../utils/axiosConfig";
+import FFInputControl from "../components/FFInputControl";
+import FFModal from "../components/FFModal";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -120,36 +123,32 @@ const MainStackScreen = () => {
     lat: 10.826411,
     lng: 106.617353,
   });
-  const { restaurant_id } = useSelector((state: RootState) => state.auth);
+  const [reason, setReason] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const { restaurant_id, id: restaurantUserId } = useSelector(
+    (state: RootState) => state.auth
+  );
   const { expoPushToken } = usePushNotifications();
   const [latestOrder, setLatestOrder] =
     useState<Type_PushNotification_Order | null>(null);
   const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
     useState(false);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
+  const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const sendPushNotification = useCallback(
     (order: Type_PushNotification_Order, expoPushToken?: { data: string }) => {
       console.log("Sending push notification for order:", order.orderId);
       if (expoPushToken) {
-        // Implement Expo push notification logic
         console.log("Push notification payload:", {
           to: expoPushToken.data,
           title: `Order #${order.orderId.slice(-8)}`,
           body: `Status: ${order.status}`,
         });
-        // Uncomment to enable actual push notification
-        // fetch("https://exp.host/--/api/v2/push/send", {
-        //   method: "POST",
-        //   headers: { "Content-Type": "application/json" },
-        //   body: JSON.stringify({
-        //     to: expoPushToken.data,
-        //     title: `Order #${order.orderId.slice(-8)}`,
-        //     body: `Status: ${order.status}`,
-        //   }),
-        // });
       }
-      // Trigger FFToast for incoming orders
       if (order.status === "PENDING") {
         setIsShowIncomingOrderToast(true);
       }
@@ -196,6 +195,80 @@ const MainStackScreen = () => {
     socket?.emit("restaurantAcceptWithAvailableDrivers", requestBody);
     setIsShowIncomingOrderToast(false);
   }, [latestOrder, allDrivers, socket]);
+
+  const handleRejectOrder = useCallback(async () => {
+    if (!latestOrder) return;
+    setIsRejectModalVisible(true);
+  }, [latestOrder]);
+
+  const handleSubmitReject = useCallback(async () => {
+    console.log("Submitting reject with state:", {
+      reason,
+      title,
+      description,
+    });
+
+    if (!latestOrder || !restaurant_id || !restaurantUserId) {
+      console.error("Missing required data for reject order");
+      alert("Missing required data");
+      return;
+    }
+
+    if (!reason || !title || !description) {
+      console.error("All cancellation fields are required");
+      alert("Please fill in all fields");
+      return;
+    }
+
+    const requestBody = {
+      cancelled_by: "restaurant" as const,
+      cancelled_by_id: restaurantUserId,
+      reason,
+      title,
+      description,
+    };
+
+    console.log("Sending reject order request:", requestBody);
+
+    try {
+      setIsLoading(true);
+      const response = await axiosInstance.post(
+        `/orders/${latestOrder.orderId}/cancel`,
+        requestBody
+      );
+      console.log("Reject order response:", response.data);
+      if (response.data.EC === 0) {
+        setIsLoading(false);
+        setIsRejectModalVisible(false);
+        setIsShowIncomingOrderToast(false);
+        setReason("");
+        setTitle("");
+        setDescription("");
+      }
+    } catch (error) {
+      console.error("Error rejecting order:", error);
+      alert("Failed to reject order");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    latestOrder,
+    restaurant_id,
+    restaurantUserId,
+    reason,
+    title,
+    description,
+  ]);
+
+  console.log(
+    "check late",
+    latestOrder?.total_amount,
+    "order item",
+    latestOrder?.order_items
+  );
+
+  if (isLoading) <Spinner isVisible isOverlay />;
+
   return (
     <>
       <MainStack.Navigator>
@@ -263,6 +336,7 @@ const MainStackScreen = () => {
       <FFToast
         disabledClose
         onAccept={handleAcceptOrder}
+        onReject={handleRejectOrder}
         onClose={() => setIsShowIncomingOrderToast(false)}
         visible={isShowIncomingOrderToast}
         isApprovalType
@@ -327,6 +401,72 @@ const MainStackScreen = () => {
           </View>
         </View>
       </FFToast>
+      <FFModal
+        visible={isRejectModalVisible}
+        onClose={() => {
+          setIsRejectModalVisible(false);
+          setReason("");
+          setTitle("");
+          setDescription("");
+        }}
+      >
+        <FFText
+          style={{
+            fontSize: typography.fontSize.lg,
+            fontFamily: typography.fontFamily.bold,
+            marginBottom: spacing.md,
+          }}
+        >
+          Reject Order
+        </FFText>
+        <FFInputControl
+          label="Reason"
+          value={reason}
+          setValue={(value) => {
+            console.log("Updating reason:", value);
+            setReason(value);
+          }}
+          placeholder="Enter reason for cancellation"
+        />
+        <FFInputControl
+          label="Title"
+          value={title}
+          setValue={(value) => {
+            console.log("Updating title:", value);
+            setTitle(value);
+          }}
+          placeholder="Enter cancellation title"
+        />
+        <FFInputControl
+          label="Description"
+          value={description}
+          setValue={(value) => {
+            console.log("Updating description:", value);
+            setDescription(value);
+          }}
+          placeholder="Enter detailed description"
+        />
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#63c550",
+            padding: spacing.md,
+            borderRadius: 8,
+            alignItems: "center",
+            marginTop: spacing.md,
+          }}
+          onPress={handleSubmitReject}
+        >
+          <FFText
+            style={{
+              color: "#fff",
+              fontSize: typography.fontSize.md,
+              fontFamily: typography.fontFamily.medium,
+            }}
+          >
+            Submit
+          </FFText>
+        </TouchableOpacity>
+      </FFModal>
     </>
   );
 };

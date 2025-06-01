@@ -75,19 +75,39 @@ const HomeScreen = () => {
     setIsLoadingStats(true);
     try {
       const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-      const startDateStr = startOfDay.toISOString().split("T")[0];
-      const endDateStr = endOfDay.toISOString().split("T")[0];
+      // Start of today (local)
+      const startOfDay = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+      );
+
+      // End is start of next day (local)
+      const endOfNextDay = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1
+      );
+
+      // Format YYYY-MM-DD using local timezone
+      const formatDate = (date: Date) => date.toLocaleDateString("sv-SE"); // returns "YYYY-MM-DD"
+
+      const startDateStr = formatDate(startOfDay);
+      const endDateStr = formatDate(endOfNextDay);
 
       const response = await axiosInstance.get(
         `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
       );
 
+      console.log(
+        "check respon",
+        `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
+      );
+
       if (response.data.EC === 0) {
         const statsData = response.data.data;
-        
+
         // Calculate total revenue and orders
         const totalStats = statsData.reduce(
           (acc: any, record: any) => ({
@@ -146,11 +166,12 @@ const HomeScreen = () => {
       label: "Promotions",
       onPress: () => navigation.navigate("Promotions"),
     },
-    { id: 5, icon: "wallet", label: "My Wallet",
+    {
+      id: 5,
+      icon: "wallet",
+      label: "My Wallet",
       onPress: () => navigation.navigate("PaymentMethod"),
-
-
-     },
+    },
     { id: 6, icon: "bulb", label: "Marketing" },
   ];
 
@@ -183,10 +204,12 @@ const HomeScreen = () => {
             >
               {restaurant_name}
             </FFText>
-         {(address?.street && address?.city && address?.nationality) ?   <FFText style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
-              {address?.street}, {address?.city}, {address?.nationality}
-            </FFText> : (
-              <FFText style={{color: colors.grey}}>Unknown Address</FFText>
+            {address?.street && address?.city && address?.nationality ? (
+              <FFText style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
+                {address?.street}, {address?.city}, {address?.nationality}
+              </FFText>
+            ) : (
+              <FFText style={{ color: colors.grey }}>Unknown Address</FFText>
             )}
           </View>
           <FFAvatar size={40} avatar={avatar?.url} />

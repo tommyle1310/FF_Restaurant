@@ -35,10 +35,12 @@ export const useSocket = (
       currentOrder: Type_PushNotification_Order | null
     ) => {
       if (!currentOrder) return false;
-      // Only check order ID and status for equality
       return (
         newOrder.orderId === currentOrder.orderId &&
-        newOrder.status === currentOrder.status
+        newOrder.status === currentOrder.status &&
+        newOrder.total_amount === currentOrder.total_amount &&
+        JSON.stringify(newOrder.order_items) ===
+          JSON.stringify(currentOrder.order_items)
       );
     },
     []
@@ -77,7 +79,7 @@ export const useSocket = (
         ? response.order_items
         : [];
 
-      return {
+      const order: Type_PushNotification_Order = {
         orderId: response.orderId ?? response.id ?? "",
         customer_id: response.customer_id ?? "",
         total_amount: isNaN(totalAmount) ? 0 : totalAmount,
@@ -129,6 +131,16 @@ export const useSocket = (
           title: "",
         },
       };
+
+      if (
+        !order.orderId ||
+        order.total_amount === 0 ||
+        !order.order_items.length
+      ) {
+        console.warn("Incomplete order constructed:", order);
+      }
+
+      return order;
     },
     [restaurantId]
   );
@@ -146,8 +158,13 @@ export const useSocket = (
     const eventKey = `${data.orderId ?? data.id ?? "unknown"}`;
     const lastUpdatedAt = processedEventIds.current.get(eventKey);
 
-    if (lastUpdatedAt && lastUpdatedAt >= (data.updated_at ?? Date.now())) {
-      console.log(`Skipping duplicate or older event (${event}):`, id);
+    // Allow processing if the event is newer or if the order content differs
+    if (
+      lastUpdatedAt &&
+      lastUpdatedAt >= (data.updated_at ?? Date.now()) &&
+      areOrdersEqual(buildPushNotificationOrder(data), latestOrder)
+    ) {
+      console.log(`Skipping duplicate event (${event}):`, id);
       isProcessingRef.current = false;
       processEventQueue();
       return;
@@ -170,6 +187,18 @@ export const useSocket = (
           order_items: order.order_items,
           updated_at: order.updated_at,
         });
+
+        // Validate order before updating
+        if (order.total_amount === 0 || order.order_items.length === 0) {
+          console.warn(
+            "Skipping update due to incomplete order data:",
+            order.orderId
+          );
+          isProcessingRef.current = false;
+          processEventQueue();
+          return;
+        }
+
         dispatch(updateAndSaveOrderTracking(order));
         setLatestOrder(order);
 
@@ -240,7 +269,10 @@ export const useSocket = (
         "Received incomingOrderForRestaurant at:",
         new Date().toISOString()
       );
-      console.log("Response data:", JSON.stringify(response, null, 2));
+      console.log(
+        "Response data incomingOrder:",
+        JSON.stringify(response, null, 2)
+      );
       const eventId = `${response.orderId ?? response.id ?? "unknown"}_${
         response.updated_at ?? Date.now()
       }`;
@@ -291,7 +323,7 @@ export const useSocket = (
     };
   }, [accessToken, restaurantId]);
 
-  console.log("check latest order:", JSON.stringify(latestOrder, null, 2));
+  console.log("Latest order state:", JSON.stringify(latestOrder, null, 2));
 
   return {
     socket,

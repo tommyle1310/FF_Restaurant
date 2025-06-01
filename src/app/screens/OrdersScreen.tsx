@@ -1076,6 +1076,7 @@ const styles = StyleSheet.create<Styles>({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: spacing.md,
     paddingVertical: spacing.xl,
   },
   emptyText: {
