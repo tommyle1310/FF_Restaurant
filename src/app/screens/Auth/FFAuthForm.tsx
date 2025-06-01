@@ -50,7 +50,7 @@ const FFAuthForm = ({
   error,
 }: FFAuthFormProps) => {
   // Basic Info State
-  const [email, setEmail] = useState("v.c.l.32141@gmail.com");
+  const [email, setEmail] = useState("tommyle1310@gmail.com");
   const [password, setPassword] = useState("000000");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");

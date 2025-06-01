@@ -2,7 +2,10 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { debounce } from "lodash";
-import { Enum_OrderStatus, Type_PushNotification_Order } from "@/src/types/Orders";
+import {
+  Enum_OrderStatus,
+  Type_PushNotification_Order,
+} from "@/src/types/Orders";
 
 // Define the order type based on the push notification structure
 export type OrderTracking = Type_PushNotification_Order;
@@ -28,7 +31,10 @@ const mapOrderToLog = (order: OrderTracking) => ({
 const debouncedSaveToStorage = debounce(async (orders: OrderTracking[]) => {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-    console.log("Successfully saved restaurant orders to AsyncStorage:", orders.length);
+    console.log(
+      "Successfully saved restaurant orders to AsyncStorage:",
+      orders.length
+    );
   } catch (error) {
     console.error("Error saving to AsyncStorage:", error);
   }
@@ -72,10 +78,13 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
     updatedOrders.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
 
     // Filter only active orders for AsyncStorage
-    const ordersToSave = updatedOrders.filter(
-      (o) =>
-        o.status !== Enum_OrderStatus.DELIVERED &&
-        o.status !== Enum_OrderStatus.CANCELLED
+    const ordersToSave = updatedOrders.filter((o) =>
+      [
+        Enum_OrderStatus.PENDING,
+        Enum_OrderStatus.RESTAURANT_ACCEPTED,
+        Enum_OrderStatus.EN_ROUTE,
+        Enum_OrderStatus.READY_FOR_PICKUP,
+      ].includes(o.status)
     );
 
     console.log("Updated restaurant orders:", {
@@ -101,19 +110,18 @@ export const loadOrderTrackingFromAsyncStorage = createAsyncThunk(
 
       // Filter out completed/cancelled orders and sort by updated_at
       const validOrders = orders
-        .filter(
-          (order: OrderTracking) =>
-            order.status !== Enum_OrderStatus.DELIVERED &&
-            order.status !== Enum_OrderStatus.CANCELLED &&
-            // Check if the order is in a valid ongoing state
-            [
-              Enum_OrderStatus.PENDING,
-              Enum_OrderStatus.RESTAURANT_ACCEPTED,
-              Enum_OrderStatus.EN_ROUTE,
-            ].includes(order.status)
+        .filter((order: OrderTracking) =>
+          // Only keep orders in active states
+          [
+            Enum_OrderStatus.PENDING,
+            Enum_OrderStatus.RESTAURANT_ACCEPTED,
+            Enum_OrderStatus.EN_ROUTE,
+            Enum_OrderStatus.READY_FOR_PICKUP,
+          ].includes(order.status)
         )
         .sort(
-          (a: OrderTracking, b: OrderTracking) => (b.updated_at || 0) - (a.updated_at || 0)
+          (a: OrderTracking, b: OrderTracking) =>
+            (b.updated_at || 0) - (a.updated_at || 0)
         );
 
       console.log(
@@ -145,6 +153,20 @@ const restaurantOrderTrackingSlice = createSlice({
       state.orders = [];
       AsyncStorage.removeItem(STORAGE_KEY);
     },
+    cleanupInactiveOrders: (state) => {
+      console.log("Cleaning up inactive orders");
+      const activeOrders = state.orders.filter((order) =>
+        [
+          Enum_OrderStatus.PENDING,
+          Enum_OrderStatus.RESTAURANT_ACCEPTED,
+          Enum_OrderStatus.EN_ROUTE,
+          Enum_OrderStatus.READY_FOR_PICKUP,
+        ].includes(order.status)
+      );
+      state.orders = activeOrders;
+      debouncedSaveToStorage(activeOrders);
+      console.log("Active orders after cleanup:", activeOrders.length);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -159,6 +181,9 @@ const restaurantOrderTrackingSlice = createSlice({
   },
 });
 
-export const { removeOrderTracking, clearOrderTracking } =
-  restaurantOrderTrackingSlice.actions;
+export const {
+  removeOrderTracking,
+  clearOrderTracking,
+  cleanupInactiveOrders,
+} = restaurantOrderTrackingSlice.actions;
 export default restaurantOrderTrackingSlice.reducer;

@@ -115,7 +115,6 @@ const BottomTabs = () => {
   );
 };
 
-
 const MainStackScreen = () => {
   const [selectedLocation, setSelectedLocation] = useState({
     lat: 10.826411,
@@ -123,8 +122,10 @@ const MainStackScreen = () => {
   });
   const { restaurant_id } = useSelector((state: RootState) => state.auth);
   const { expoPushToken } = usePushNotifications();
-  const [latestOrder, setLatestOrder] = useState<Type_PushNotification_Order | null>(null);
-  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] = useState(false);
+  const [latestOrder, setLatestOrder] =
+    useState<Type_PushNotification_Order | null>(null);
+  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
+    useState(false);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
 
   const sendPushNotification = useCallback(
@@ -267,9 +268,26 @@ const MainStackScreen = () => {
         isApprovalType
       >
         <FFText>Incoming Order</FFText>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <FFText style={{ fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.medium }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.sm,
+            }}
+          >
+            <FFText
+              style={{
+                fontSize: typography.fontSize.sm,
+                fontFamily: typography.fontFamily.medium,
+              }}
+            >
               Total:
             </FFText>
             <FFText
@@ -282,7 +300,13 @@ const MainStackScreen = () => {
               ${latestOrder?.total_amount ?? 0}
             </FFText>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.sm,
+            }}
+          >
             <FFText
               style={{
                 fontSize: typography.fontSize.sm,
@@ -292,7 +316,12 @@ const MainStackScreen = () => {
             >
               {latestOrder?.order_items?.length || 0}
             </FFText>
-            <FFText style={{ fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.medium }}>
+            <FFText
+              style={{
+                fontSize: typography.fontSize.sm,
+                fontFamily: typography.fontFamily.medium,
+              }}
+            >
               items
             </FFText>
           </View>
@@ -301,7 +330,6 @@ const MainStackScreen = () => {
     </>
   );
 };
-
 
 const AppNavigator = () => {
   const token = useSelector((state: RootState) => state.auth.accessToken);

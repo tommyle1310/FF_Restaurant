@@ -16,8 +16,18 @@ import {
 import { TabView, SceneMap, TabBar } from "react-native-tab-view";
 import { useWindowDimensions } from "react-native";
 import axiosInstance from "@/src/utils/axiosConfig";
-import { colors, spacing, typography, shadows, borderRadius } from "@/src/theme";
-import { Enum_OrderStatus, Type_PushNotification_Order, Enum_OrderTrackingInfo } from "@/src/types/Orders";
+import {
+  colors,
+  spacing,
+  typography,
+  shadows,
+  borderRadius,
+} from "@/src/theme";
+import {
+  Enum_OrderStatus,
+  Type_PushNotification_Order,
+  Enum_OrderTrackingInfo,
+} from "@/src/types/Orders";
 import moment from "moment";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSelector, useDispatch } from "@/src/store/types";
@@ -25,9 +35,8 @@ import { RootState } from "@/src/store/store";
 import {
   loadOrderTrackingFromAsyncStorage,
   updateAndSaveOrderTracking,
-  removeOrderTracking,
+  cleanupInactiveOrders,
 } from "@/src/store/restaurantOrderTrackingSlice";
-import { useSocket } from "@/src/hooks/useSocket";
 
 type OrderItem = {
   name: string;
@@ -167,16 +176,53 @@ const OrderCard = ({
   };
 
   const getStatusColor = (status: string) => {
-    const statusColors: { [key: string]: string } = {
-      PENDING: colors.error,
-      RESTAURANT_ACCEPTED: colors.info,
-      EN_ROUTE: colors.success,
-      DELIVERED: colors.primary,
-      CANCELLED: colors.grey,
-      REJECTED: colors.grey,
-      READY_FOR_PICKUP: colors.warning,
+    const statusColors: {
+      [key: string]: { backgroundColor: string; textColor: string };
+    } = {
+      PENDING: {
+        backgroundColor: colors.violet_light,
+        textColor: colors.violet,
+      },
+      PREPARING: {
+        backgroundColor: "#D0E8FF", // light info
+        textColor: colors.info,
+      },
+      DISPATCHED: {
+        backgroundColor: "#FFE8B2", // light warning
+        textColor: colors.warning,
+      },
+      READY_FOR_PICKUP: {
+        backgroundColor: colors.beige_light,
+        textColor: "#9E7E38", // deeper beige tone for contrast
+      },
+      RESTAURANT_PICKUP: {
+        backgroundColor: colors.green_muted,
+        textColor: colors.primary,
+      },
+      EN_ROUTE: {
+        backgroundColor: "#D1FADF", // lighter primary_dark
+        textColor: colors.primary_dark,
+      },
+      DELIVERED: {
+        backgroundColor: "#EBF9EF",
+        textColor: "#2E7D32", // darker green
+      },
+      CANCELLED: {
+        backgroundColor: colors.lightGrey,
+        textColor: colors.grey,
+      },
+      REJECTED: {
+        backgroundColor: "#FFD6D6",
+        textColor: colors.error,
+      },
     };
-    return statusColors[status] || colors.grey;
+
+    return (
+      statusColors[status] || {
+        backgroundColor: colors.lightGrey,
+        textColor: colors.grey,
+      }
+    );
   };
 
   const handleActionPress = (e: any, action: () => void) => {
@@ -218,10 +264,17 @@ const OrderCard = ({
               <FFView
                 style={{
                   ...styles.statusBadge,
-                  backgroundColor: getStatusColor(item.status),
+                  backgroundColor: getStatusColor(item.status).backgroundColor,
                 }}
               >
-                <FFText style={styles.statusText}>{item.status}</FFText>
+                <FFText
+                  style={{
+                    ...styles.statusText,
+                    color: getStatusColor(item.status).textColor,
+                  }}
+                >
+                  {item.status}
+                </FFText>
               </FFView>
             </View>
           </FFView>
@@ -252,7 +305,9 @@ const OrderCard = ({
               borderColor: colors.grey,
             }}
             onPress={(e) =>
-              handleActionPress(e, () => onUpdateStatus(item.orderId, Enum_OrderStatus.REJECTED))
+              handleActionPress(e, () =>
+                onUpdateStatus(item.orderId, Enum_OrderStatus.REJECTED)
+              )
             }
           >
             <FFText style={{ color: colors.error }}>Reject</FFText>
@@ -260,7 +315,12 @@ const OrderCard = ({
           <TouchableOpacity
             style={styles.actionButtonContainer}
             onPress={(e) =>
-              handleActionPress(e, () => onUpdateStatus(item.orderId, Enum_OrderStatus.RESTAURANT_ACCEPTED))
+              handleActionPress(e, () =>
+                onUpdateStatus(
+                  item.orderId,
+                  Enum_OrderStatus.RESTAURANT_ACCEPTED
+                )
+              )
             }
           >
             <FFText style={{ color: colors.white }}>Accept</FFText>
@@ -281,16 +341,22 @@ const OrderCard = ({
         </View>
       )}
 
-      {showActions && isExpanded && item.status === Enum_OrderStatus.RESTAURANT_ACCEPTED && (
-        <TouchableOpacity
-          style={[styles.updateButtonContainer, { marginTop: spacing.md }]}
-          onPress={(e) =>
-            handleActionPress(e, () => onUpdateStatus(item.orderId, Enum_OrderStatus.READY_FOR_PICKUP))
-          }
-        >
-          <FFText style={{ color: colors.white }}>Mark as Ready for Pickup</FFText>
-        </TouchableOpacity>
-      )}
+      {showActions &&
+        isExpanded &&
+        item.status === Enum_OrderStatus.RESTAURANT_ACCEPTED && (
+          <TouchableOpacity
+            style={[styles.updateButtonContainer, { marginTop: spacing.md }]}
+            onPress={(e) =>
+              handleActionPress(e, () =>
+                onUpdateStatus(item.orderId, Enum_OrderStatus.READY_FOR_PICKUP)
+              )
+            }
+          >
+            <FFText style={{ color: colors.white }}>
+              Mark as Ready for Pickup
+            </FFText>
+          </TouchableOpacity>
+        )}
     </TouchableOpacity>
   );
 };
@@ -301,15 +367,26 @@ export default function OrderScreen() {
   const [index, setIndex] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState({ title: "", subtitle: "" });
-  const [completedOrders, setCompletedOrders] = useState<Type_PushNotification_Order[]>([]);
-  const [cancelledOrders, setCancelledOrders] = useState<Type_PushNotification_Order[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<
+    Type_PushNotification_Order[]
+  >([]);
+  const [cancelledOrders, setCancelledOrders] = useState<
+    Type_PushNotification_Order[]
+  >([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { id } = useSelector((state: RootState) => state.auth);
   const orders = useSelector((state: RootState) => {
     console.log("Redux orders:", state.restaurantOrderTracking.orders);
     return state.restaurantOrderTracking.orders;
   });
   const dispatch = useDispatch();
-  const { socket, latestOrder } = useSocket(id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927");
+
+  // Track the latest order for real-time notifications
+  const [lastProcessedOrderId, setLastProcessedOrderId] = useState<
+    string | null
+  >(null);
+  const [lastProcessedTimestamp, setLastProcessedTimestamp] =
+    useState<number>(0);
 
   const showModal = useCallback((title: string, subtitle: string) => {
     setModalMessage({ title, subtitle });
@@ -320,7 +397,7 @@ export default function OrderScreen() {
     return () => clearTimeout(timeout);
   }, []);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const restaurantId = id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927";
       const response = await axiosInstance.get<ApiResponse>(
@@ -331,31 +408,25 @@ export default function OrderScreen() {
         const apiOrders = response.data.data.orders;
         console.log("Fetched orders:", apiOrders.length);
 
-        const currentOrderStatuses = [
-          Enum_OrderStatus.PENDING,
-          Enum_OrderStatus.RESTAURANT_ACCEPTED,
-          Enum_OrderStatus.EN_ROUTE,
-          Enum_OrderStatus.READY_FOR_PICKUP,
-        ];
-
         apiOrders.forEach((order) => {
-          if (currentOrderStatuses.includes(order.status)) {
-            dispatch(
-              updateAndSaveOrderTracking({
-                orderId: order.id,
-                customer_id: order.customer_id,
-                total_amount: parseFloat(order.total_amount) || 0,
-                status: order.status,
-                order_items: order.order_items.map((item) => ({
-                  item_id: item.item_id,
-                  variant_id: item.variant_id || "",
-                  name: item.menu_item?.name || item.name || "Unknown Item",
-                  quantity: item.quantity,
-                  price_at_time_of_order: item.price_at_time_of_order.toString(),
-                  price_after_applied_promotion: item.price_at_time_of_order.toString(),
-                })),
-                updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
-                tracking_info: order.status === Enum_OrderStatus.PENDING
+          dispatch(
+            updateAndSaveOrderTracking({
+              orderId: order.id,
+              customer_id: order.customer_id,
+              total_amount: parseFloat(order.total_amount) || 0,
+              status: order.status,
+              order_items: order.order_items.map((item) => ({
+                item_id: item.item_id,
+                variant_id: item.variant_id || "",
+                name: item.menu_item?.name || item.name || "Unknown Item",
+                quantity: item.quantity,
+                price_at_time_of_order: item.price_at_time_of_order.toString(),
+                price_after_applied_promotion:
+                  item.price_at_time_of_order.toString(),
+              })),
+              updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
+              tracking_info:
+                order.status === Enum_OrderStatus.PENDING
                   ? Enum_OrderTrackingInfo.ORDER_PLACED
                   : order.status === Enum_OrderStatus.RESTAURANT_ACCEPTED
                   ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
@@ -363,51 +434,59 @@ export default function OrderScreen() {
                   ? Enum_OrderTrackingInfo.EN_ROUTE
                   : order.status === Enum_OrderStatus.READY_FOR_PICKUP
                   ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
-                  : Enum_OrderTrackingInfo.ORDER_PLACED,
-                driver_id: order.driver_id || null,
-                restaurant_id: order.restaurant_id,
-                restaurant_avatar: { key: order.restaurant_id, url: order.restaurant_id },
-                driver_avatar: order.driver?.avatar
-                  ? { key: order.driver.id, url: order.driver.avatar.url }
-                  : null,
-                restaurantAddress: {
-                  id: order.restaurantAddress?.id || "",
-                  street: order.restaurantAddress?.street || "",
-                  city: order.restaurantAddress?.city || "",
-                  nationality: order.restaurantAddress?.nationality || "",
-                  is_default: order.restaurantAddress?.is_default || false,
-                  created_at: order.restaurantAddress?.created_at || Date.now(),
-                  updated_at: order.restaurantAddress?.updated_at || Date.now(),
-                  postal_code: order.restaurantAddress?.postal_code || 0,
-                  location: order.restaurantAddress?.location || { lat: 0, lng: 0 },
-                  title: order.restaurantAddress?.title || "",
+                  : order.status === Enum_OrderStatus.DELIVERED
+                  ? Enum_OrderTrackingInfo.DELIVERED
+                  : Enum_OrderTrackingInfo.CANCELLED,
+              driver_id: order.driver_id || null,
+              restaurant_id: order.restaurant_id,
+              restaurant_avatar: {
+                key: order.restaurant_id,
+                url: order.restaurant_id,
+              },
+              driver_avatar: order.driver?.avatar
+                ? { key: order.driver.id, url: order.driver.avatar.url }
+                : null,
+              restaurantAddress: {
+                id: order.restaurantAddress?.id || "",
+                street: order.restaurantAddress?.street || "",
+                city: order.restaurantAddress?.city || "",
+                nationality: order.restaurantAddress?.nationality || "",
+                is_default: order.restaurantAddress?.is_default || false,
+                created_at: order.restaurantAddress?.created_at || Date.now(),
+                updated_at: order.restaurantAddress?.updated_at || Date.now(),
+                postal_code: order.restaurantAddress?.postal_code || 0,
+                location: order.restaurantAddress?.location || {
+                  lat: 0,
+                  lng: 0,
                 },
-                customerAddress: order.customerAddress
-                  ? {
-                      id: order.customerAddress.id || "",
-                      street: order.customerAddress.street || "",
-                      city: order.customerAddress.city || "",
-                      nationality: order.customerAddress.nationality || "",
-                      is_default: order.customerAddress.is_default || false,
-                      postal_code: order.customerAddress.postal_code || 0,
-                      location: order.customerAddress.location || { lat: 0, lng: 0 },
-                      title: order.customerAddress.title || "",
-                    }
-                  : {
-                      id: "",
-                      street: "",
-                      city: "",
-                      nationality: "",
-                      is_default: false,
-                      postal_code: 0,
-                      location: { lat: 0, lng: 0 },
-                      title: "",
+                title: order.restaurantAddress?.title || "",
+              },
+              customerAddress: order.customerAddress
+                ? {
+                    id: order.customerAddress.id || "",
+                    street: order.customerAddress.street || "",
+                    city: order.customerAddress.city || "",
+                    nationality: order.customerAddress.nationality || "",
+                    is_default: order.customerAddress.is_default || false,
+                    postal_code: order.customerAddress.postal_code || 0,
+                    location: order.customerAddress.location || {
+                      lat: 0,
+                      lng: 0,
                     },
-              })
-            );
-          } else {
-            dispatch(removeOrderTracking(order.id));
-          }
+                    title: order.customerAddress.title || "",
+                  }
+                : {
+                    id: "",
+                    street: "",
+                    city: "",
+                    nationality: "",
+                    is_default: false,
+                    postal_code: 0,
+                    location: { lat: 0, lng: 0 },
+                    title: "",
+                  },
+            })
+          );
         });
       } else {
         console.error("API error:", response.data.EM);
@@ -419,9 +498,9 @@ export default function OrderScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, dispatch]);
 
-  const fetchCompletedOrders = async () => {
+  const fetchCompletedOrders = useCallback(async () => {
     try {
       const restaurantId = id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927";
       const response = await axiosInstance.get<ApiResponse>(
@@ -442,13 +521,17 @@ export default function OrderScreen() {
             name: item.menu_item?.name || item.name || "Unknown Item",
             quantity: item.quantity,
             price_at_time_of_order: item.price_at_time_of_order.toString(),
-            price_after_applied_promotion: item.price_at_time_of_order.toString(),
+            price_after_applied_promotion:
+              item.price_at_time_of_order.toString(),
           })),
           updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
           tracking_info: Enum_OrderTrackingInfo.DELIVERED,
           driver_id: order.driver_id || null,
           restaurant_id: order.restaurant_id,
-          restaurant_avatar: { key: order.restaurant_id, url: order.restaurant_id },
+          restaurant_avatar: {
+            key: order.restaurant_id,
+            url: order.restaurant_id,
+          },
           driver_avatar: order.driver?.avatar
             ? { key: order.driver.id, url: order.driver.avatar.url }
             : null,
@@ -486,7 +569,11 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCompletedOrders(formattedOrders.filter(item => item.status === Enum_OrderStatus.DELIVERED));
+        setCompletedOrders(
+          formattedOrders.filter(
+            (item) => item.status === Enum_OrderStatus.DELIVERED
+          )
+        );
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch completed orders");
@@ -495,9 +582,9 @@ export default function OrderScreen() {
       console.error("Fetch completed orders error:", error);
       Alert.alert("Error", "Failed to fetch completed orders");
     }
-  };
+  }, [id]);
 
-  const fetchCancelledOrders = async () => {
+  const fetchCancelledOrders = useCallback(async () => {
     try {
       const restaurantId = id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927";
       const response = await axiosInstance.get<ApiResponse>(
@@ -518,15 +605,20 @@ export default function OrderScreen() {
             name: item.menu_item?.name || item.name || "Unknown Item",
             quantity: item.quantity,
             price_at_time_of_order: item.price_at_time_of_order.toString(),
-            price_after_applied_promotion: item.price_at_time_of_order.toString(),
+            price_after_applied_promotion:
+              item.price_at_time_of_order.toString(),
           })),
           updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
-          tracking_info: order.status === Enum_OrderStatus.CANCELLED
-            ? Enum_OrderTrackingInfo.CANCELLED
-            : Enum_OrderTrackingInfo.CANCELLED,
+          tracking_info:
+            order.status === Enum_OrderStatus.CANCELLED
+              ? Enum_OrderTrackingInfo.CANCELLED
+              : Enum_OrderTrackingInfo.CANCELLED,
           driver_id: order.driver_id || null,
           restaurant_id: order.restaurant_id,
-          restaurant_avatar: { key: order.restaurant_id, url: order.restaurant_id },
+          restaurant_avatar: {
+            key: order.restaurant_id,
+            url: order.restaurant_id,
+          },
           driver_avatar: order.driver?.avatar
             ? { key: order.driver.id, url: order.driver.avatar.url }
             : null,
@@ -564,7 +656,13 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCancelledOrders(formattedOrders.filter(item => item.status === Enum_OrderStatus.CANCELLED || item.status === Enum_OrderStatus.REJECTED));
+        setCancelledOrders(
+          formattedOrders.filter(
+            (item) =>
+              item.status === Enum_OrderStatus.CANCELLED ||
+              item.status === Enum_OrderStatus.REJECTED
+          )
+        );
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch cancelled orders");
@@ -573,47 +671,97 @@ export default function OrderScreen() {
       console.error("Fetch cancelled orders error:", error);
       Alert.alert("Error", "Failed to fetch cancelled orders");
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     console.log("Loading orders, restaurant_id:", id);
     const initializeOrders = async () => {
+      // Load from AsyncStorage first
       await dispatch(loadOrderTrackingFromAsyncStorage()).unwrap();
+      // Clean up any inactive orders that might be in storage
+      dispatch(cleanupInactiveOrders());
+      // Then fetch fresh data from API
       await fetchOrders();
       await fetchCompletedOrders();
       await fetchCancelledOrders();
     };
     initializeOrders();
-  }, [id, dispatch]);
+  }, [id, dispatch, fetchOrders, fetchCompletedOrders, fetchCancelledOrders]);
 
+  // Real-time order change detection
+  // Inside OrderScreen component
   useEffect(() => {
-    if (latestOrder) {
-      console.log("Latest order from socket:", latestOrder.orderId, "Status:", latestOrder.status);
-      // showModal(
-      //   `Order #${latestOrder.orderId.slice(-8)} Updated`,
-      //   `Status: ${latestOrder.status}`
-      // );
+    if (orders.length === 0) return;
+
+    // Find the most recently updated order
+    const latestOrder = orders.reduce((latest, current) =>
+      (current.updated_at || 0) > (latest.updated_at || 0) ? current : latest
+    );
+
+    // Check if this is a new order or status change
+    const isNewOrder = latestOrder.orderId !== lastProcessedOrderId;
+    const isStatusChange = latestOrder.updated_at > lastProcessedTimestamp;
+
+    if (isNewOrder || isStatusChange) {
+      console.log(
+        "Order change detected:",
+        latestOrder.orderId,
+        "Status:",
+        latestOrder.status,
+        "Updated at:",
+        latestOrder.updated_at
+      );
+
+      // Show notification for new orders or status updates
+      if (latestOrder.status === Enum_OrderStatus.PENDING && isNewOrder) {
+      } else if (isStatusChange && !isNewOrder) {
+      }
+
+      // Refresh appropriate tabs based on order status
+      if (latestOrder.status === Enum_OrderStatus.DELIVERED) {
+        // Ensure completed orders are fetched immediately
+        fetchCompletedOrders();
+      } else if (
+        [Enum_OrderStatus.CANCELLED, Enum_OrderStatus.REJECTED].includes(
+          latestOrder.status
+        )
+      ) {
+        fetchCancelledOrders();
+      }
+
+      // Update tracking state
+      setLastProcessedOrderId(latestOrder.orderId);
+      setLastProcessedTimestamp(latestOrder.updated_at || Date.now());
+
+      // Trigger a refresh to update the UI
+      setRefreshTrigger((prev) => prev + 1);
     }
-  }, [latestOrder, showModal]);
+  }, [
+    orders,
+    lastProcessedOrderId,
+    lastProcessedTimestamp,
+    showModal,
+    fetchCompletedOrders,
+    fetchCancelledOrders,
+  ]);
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      await axiosInstance.patch(`/orders/${orderId}/status`, { status: newStatus });
-      const order = orders.find((o: Type_PushNotification_Order) => o.orderId === orderId);
+      await axiosInstance.patch(`/orders/${orderId}/status`, {
+        status: newStatus,
+      });
+      const order = orders.find(
+        (o: Type_PushNotification_Order) => o.orderId === orderId
+      );
 
       if (order) {
-        if ([
-          Enum_OrderStatus.PENDING,
-          Enum_OrderStatus.RESTAURANT_ACCEPTED,
-          Enum_OrderStatus.EN_ROUTE,
-          Enum_OrderStatus.READY_FOR_PICKUP,
-        ].includes(newStatus as Enum_OrderStatus)) {
-          dispatch(
-            updateAndSaveOrderTracking({
-              ...order,
-              status: newStatus as Enum_OrderStatus,
-              updated_at: Date.now(),
-              tracking_info: newStatus === Enum_OrderStatus.PENDING
+        dispatch(
+          updateAndSaveOrderTracking({
+            ...order,
+            status: newStatus as Enum_OrderStatus,
+            updated_at: Date.now(),
+            tracking_info:
+              newStatus === Enum_OrderStatus.PENDING
                 ? Enum_OrderTrackingInfo.ORDER_PLACED
                 : newStatus === Enum_OrderStatus.RESTAURANT_ACCEPTED
                 ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
@@ -621,55 +769,85 @@ export default function OrderScreen() {
                 ? Enum_OrderTrackingInfo.EN_ROUTE
                 : newStatus === Enum_OrderStatus.READY_FOR_PICKUP
                 ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
-                : Enum_OrderTrackingInfo.ORDER_PLACED,
-            })
-          );
-        } else {
-          dispatch(removeOrderTracking(orderId));
-        }
+                : newStatus === Enum_OrderStatus.DELIVERED
+                ? Enum_OrderTrackingInfo.DELIVERED
+                : Enum_OrderTrackingInfo.CANCELLED,
+          })
+        );
       }
 
-      if ([Enum_OrderStatus.DELIVERED].includes(newStatus as Enum_OrderStatus)) {
-        await fetchCompletedOrders();
-      } else if ([Enum_OrderStatus.CANCELLED, Enum_OrderStatus.REJECTED].includes(newStatus as Enum_OrderStatus)) {
-        await fetchCancelledOrders();
+      if (newStatus === Enum_OrderStatus.DELIVERED) {
+        await fetchCompletedOrders(); // Cập nhật tab Completed
+      } else if (
+        [Enum_OrderStatus.CANCELLED, Enum_OrderStatus.REJECTED].includes(
+          newStatus as Enum_OrderStatus
+        )
+      ) {
+        await fetchCancelledOrders(); // Cập nhật tab Cancelled
       }
-
-      showModal("Success", `Order status updated to "${newStatus}"`);
     } catch (error) {
       console.error("Update status error:", error);
       showModal("Error", "Failed to update order status");
     }
   };
 
-  const renderCurrentOrder = ({ item }: { item: Type_PushNotification_Order }) => (
-    <OrderCard item={item} onUpdateStatus={updateOrderStatus} showActions={true} />
+  const renderCurrentOrder = ({
+    item,
+  }: {
+    item: Type_PushNotification_Order;
+  }) => (
+    <OrderCard
+      item={item}
+      onUpdateStatus={updateOrderStatus}
+      showActions={true}
+    />
   );
 
-  const renderCompletedOrder = ({ item }: { item: Type_PushNotification_Order }) => (
-    <OrderCard item={item} onUpdateStatus={updateOrderStatus} showActions={false} />
+  const renderCompletedOrder = ({
+    item,
+  }: {
+    item: Type_PushNotification_Order;
+  }) => (
+    <OrderCard
+      item={item}
+      onUpdateStatus={updateOrderStatus}
+      showActions={false}
+    />
   );
 
-  const renderCancelledOrder = ({ item }: { item: Type_PushNotification_Order }) => (
-    <OrderCard item={item} onUpdateStatus={updateOrderStatus} showActions={false} />
+  const renderCancelledOrder = ({
+    item,
+  }: {
+    item: Type_PushNotification_Order;
+  }) => (
+    <OrderCard
+      item={item}
+      onUpdateStatus={updateOrderStatus}
+      showActions={false}
+    />
   );
 
   const CurrentOrders = () => {
     const currentOrders = orders.filter((order: Type_PushNotification_Order) =>
       [
         Enum_OrderStatus.PENDING,
-        Enum_OrderStatus.RESTAURANT_ACCEPTED,
+        Enum_OrderStatus.PREPARING,
+        Enum_OrderStatus.RESTAURANT_PICKUP,
+        Enum_OrderStatus.DISPATCHED,
         Enum_OrderStatus.EN_ROUTE,
         Enum_OrderStatus.READY_FOR_PICKUP,
       ].includes(order.status)
     );
-    console.log("Current orders:", currentOrders.map((o) => ({ id: o.orderId, status: o.status })));
+    console.log("Current orders:", orders);
     return (
       <FlatList
         data={currentOrders}
         renderItem={renderCurrentOrder}
-        keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
+        keyExtractor={(item: Type_PushNotification_Order) =>
+          `${item.orderId}_${refreshTrigger}`
+        }
         contentContainerStyle={styles.list}
+        extraData={refreshTrigger}
         ListEmptyComponent={() => (
           <FFView style={styles.emptyContainer}>
             <FFText style={styles.emptyText}>No current orders</FFText>
@@ -680,13 +858,19 @@ export default function OrderScreen() {
   };
 
   const CompletedOrders = () => {
-    console.log("Completed orders:", completedOrders.map((o) => ({ id: o.orderId, status: o.status })));
+    console.log(
+      "Completed orders:",
+      completedOrders.map((o) => ({ id: o.orderId, status: o.status }))
+    );
     return (
       <FlatList
         data={completedOrders}
         renderItem={renderCompletedOrder}
-        keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
+        keyExtractor={(item: Type_PushNotification_Order) =>
+          `${item.orderId}_completed_${refreshTrigger}`
+        }
         contentContainerStyle={styles.list}
+        extraData={refreshTrigger}
         ListEmptyComponent={() => (
           <FFView style={styles.emptyContainer}>
             <FFText style={styles.emptyText}>No completed orders</FFText>
@@ -697,13 +881,19 @@ export default function OrderScreen() {
   };
 
   const CancelledOrders = () => {
-    console.log("Cancelled orders:", cancelledOrders.map((o) => ({ id: o.orderId, status: o.status })));
+    console.log(
+      "Cancelled orders:",
+      cancelledOrders.map((o) => ({ id: o.orderId, status: o.status }))
+    );
     return (
       <FlatList
         data={cancelledOrders}
         renderItem={renderCancelledOrder}
-        keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
+        keyExtractor={(item: Type_PushNotification_Order) =>
+          `${item.orderId}_cancelled_${refreshTrigger}`
+        }
         contentContainerStyle={styles.list}
+        extraData={refreshTrigger}
         ListEmptyComponent={() => (
           <FFView style={styles.emptyContainer}>
             <FFText style={styles.emptyText}>No cancelled orders</FFText>
@@ -733,13 +923,20 @@ export default function OrderScreen() {
     );
   }
 
+  const handleIndexChange = async (newIndex: number) => {
+    setIndex(newIndex);
+    if (routes[newIndex].key === "completed") {
+      await fetchCompletedOrders();
+    }
+  };
+
   return (
     <FFSafeAreaView style={styles.container}>
       <TabView
-      style={{width: '100%'}}
+        style={{ width: "100%" }}
         navigationState={{ index, routes }}
         renderScene={renderScene}
-        onIndexChange={setIndex}
+        onIndexChange={handleIndexChange} // Updated to use custom handler
         initialLayout={{ width: layout.width }}
         renderTabBar={(props) => (
           <TabBar
@@ -750,14 +947,10 @@ export default function OrderScreen() {
             indicatorStyle={styles.tabIndicator}
             tabStyle={styles.tab}
             scrollEnabled
-            // ={styles.tabLabel}
           />
         )}
       />
-      <FFModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-      >
+      <FFModal visible={modalVisible} onClose={() => setModalVisible(false)}>
         <FFView style={styles.toastModal}>
           <FFText style={styles.toastText}>{modalMessage.title}</FFText>
           <FFText style={styles.toastText}>{modalMessage.subtitle}</FFText>
@@ -863,7 +1056,7 @@ const styles = StyleSheet.create<Styles>({
   },
   tabBar: {
     backgroundColor: colors.background,
-    width: '100%',
+    width: "100%",
     ...shadows.xs,
   },
   tab: {

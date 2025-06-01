@@ -3,16 +3,25 @@ import { io, Socket } from "socket.io-client";
 import { useDispatch, useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import { BACKEND_URL } from "@/src/utils/constants";
-import { Type_PushNotification_Order, Enum_OrderTrackingInfo } from "@/src/types/Orders";
+import {
+  Type_PushNotification_Order,
+  Enum_OrderTrackingInfo,
+} from "@/src/types/Orders";
 import { updateAndSaveOrderTracking } from "@/src/store/restaurantOrderTrackingSlice";
 
 export const useSocket = (
   restaurantId: string,
-  setOrders?: React.Dispatch<React.SetStateAction<Type_PushNotification_Order[]>>,
-  sendPushNotification?: (order: Type_PushNotification_Order, expoPushToken?: { data: string }) => void
+  setOrders?: React.Dispatch<
+    React.SetStateAction<Type_PushNotification_Order[]>
+  >,
+  sendPushNotification?: (
+    order: Type_PushNotification_Order,
+    expoPushToken?: { data: string }
+  ) => void
 ) => {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [latestOrder, setLatestOrder] = useState<Type_PushNotification_Order | null>(null);
+  const [latestOrder, setLatestOrder] =
+    useState<Type_PushNotification_Order | null>(null);
   const { accessToken } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const eventQueueRef = useRef<{ event: string; data: any; id: string }[]>([]);
@@ -21,14 +30,15 @@ export const useSocket = (
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const areOrdersEqual = useCallback(
-    (newOrder: Type_PushNotification_Order, currentOrder: Type_PushNotification_Order | null) => {
+    (
+      newOrder: Type_PushNotification_Order,
+      currentOrder: Type_PushNotification_Order | null
+    ) => {
       if (!currentOrder) return false;
+      // Only check order ID and status for equality
       return (
         newOrder.orderId === currentOrder.orderId &&
-        newOrder.status === currentOrder.status &&
-        newOrder.updated_at === currentOrder.updated_at &&
-        newOrder.total_amount === currentOrder.total_amount &&
-        JSON.stringify(newOrder.order_items) === JSON.stringify(currentOrder.order_items)
+        newOrder.status === currentOrder.status
       );
     },
     []
@@ -42,72 +52,86 @@ export const useSocket = (
       console.log("Response timeout, resetting isProcessing");
       isProcessingRef.current = false;
       if (eventQueueRef.current.length > 0) {
-        console.warn("Queue not empty after timeout, remaining events:", eventQueueRef.current.length);
+        console.warn(
+          "Queue not empty after timeout, remaining events:",
+          eventQueueRef.current.length
+        );
         processEventQueue();
       }
     }, 5000);
   };
 
-  const buildPushNotificationOrder = useCallback((response: any): Type_PushNotification_Order => {
-    if (!response || typeof response !== "object") {
-      throw new Error("Invalid or missing response data");
-    }
+  const buildPushNotificationOrder = useCallback(
+    (response: any): Type_PushNotification_Order => {
+      if (!response || typeof response !== "object") {
+        throw new Error("Invalid or missing response data");
+      }
 
-    console.log("Building order from response:", JSON.stringify(response, null, 2));
+      console.log(
+        "Building order from response:",
+        JSON.stringify(response, null, 2)
+      );
 
-    const totalAmount = Number(response.total_amount) || 0;
-    const orderItems = Array.isArray(response.order_items) ? response.order_items : [];
+      const totalAmount = Number(response.total_amount) || 0;
+      const orderItems = Array.isArray(response.order_items)
+        ? response.order_items
+        : [];
 
-    return {
-      orderId: response.orderId ?? response.id ?? "",
-      customer_id: response.customer_id ?? "",
-      total_amount: isNaN(totalAmount) ? 0 : totalAmount,
-      status: response.status ?? "PENDING",
-      order_items: orderItems.map((item: any, index: number) => {
-        if (!item || typeof item !== "object") {
-          throw new Error(`Invalid order item at index ${index}`);
-        }
-        return {
-          item_id: item.item_id ?? "",
-          variant_id: item.variant_id ?? "",
-          name: item.name ?? "",
-          quantity: Number(item.quantity ?? 0),
-          price_at_time_of_order: item.price_at_time_of_order?.toString() ?? "0",
-          price_after_applied_promotion: item.price_after_applied_promotion?.toString() ?? "0",
-        };
-      }),
-      updated_at: response.updated_at ?? Date.now(),
-      tracking_info: response.tracking_info ?? Enum_OrderTrackingInfo.ORDER_PLACED,
-      driver_id: response.driver_id ?? null,
-      restaurant_id: response.restaurant_id ?? restaurantId,
-      restaurant_avatar: response.restaurant_avatar ?? { key: "", url: "" },
-      driver_avatar: response.driver_avatar ?? null,
-      restaurantAddress: response.restaurantAddress ?? {
-        id: "",
-        street: "",
-        city: "",
-        nationality: "",
-        is_default: false,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        postal_code: 0,
-        location: { lat: 0, lng: 0 },
-        title: "",
-      },
-      customerAddress: response.customerAddress ?? {
-        id: "",
-        street: "",
-        city: "",
-        nationality: "",
-        is_default: false,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        postal_code: 0,
-        location: { lat: 0, lng: 0 },
-        title: "",
-      },
-    };
-  }, [restaurantId]);
+      return {
+        orderId: response.orderId ?? response.id ?? "",
+        customer_id: response.customer_id ?? "",
+        total_amount: isNaN(totalAmount) ? 0 : totalAmount,
+        status: response.status ?? "PENDING",
+        order_items: orderItems.map((item: any, index: number) => {
+          if (!item || typeof item !== "object") {
+            throw new Error(`Invalid order item at index ${index}`);
+          }
+          return {
+            item_id: item.item_id ?? "",
+            variant_id: item.variant_id ?? "",
+            name: item.name ?? "",
+            quantity: Number(item.quantity ?? 0),
+            price_at_time_of_order:
+              item.price_at_time_of_order?.toString() ?? "0",
+            price_after_applied_promotion:
+              item.price_after_applied_promotion?.toString() ?? "0",
+          };
+        }),
+        updated_at: response.updated_at ?? Date.now(),
+        tracking_info:
+          response.tracking_info ?? Enum_OrderTrackingInfo.ORDER_PLACED,
+        driver_id: response.driver_id ?? null,
+        restaurant_id: response.restaurant_id ?? restaurantId,
+        restaurant_avatar: response.restaurant_avatar ?? { key: "", url: "" },
+        driver_avatar: response.driver_avatar ?? null,
+        restaurantAddress: response.restaurantAddress ?? {
+          id: "",
+          street: "",
+          city: "",
+          nationality: "",
+          is_default: false,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          postal_code: 0,
+          location: { lat: 0, lng: 0 },
+          title: "",
+        },
+        customerAddress: response.customerAddress ?? {
+          id: "",
+          street: "",
+          city: "",
+          nationality: "",
+          is_default: false,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          postal_code: 0,
+          location: { lat: 0, lng: 0 },
+          title: "",
+        },
+      };
+    },
+    [restaurantId]
+  );
 
   const processEventQueue = useCallback(() => {
     if (isProcessingRef.current || eventQueueRef.current.length === 0) return;
@@ -115,7 +139,9 @@ export const useSocket = (
     isProcessingRef.current = true;
     const { event, data, id } = eventQueueRef.current.shift()!;
 
-    console.log(`Processing event: ${event}, ID: ${id}, Queue remaining: ${eventQueueRef.current.length}`);
+    console.log(
+      `Processing event: ${event}, ID: ${id}, Queue remaining: ${eventQueueRef.current.length}`
+    );
 
     const eventKey = `${data.orderId ?? data.id ?? "unknown"}`;
     const lastUpdatedAt = processedEventIds.current.get(eventKey);
@@ -171,7 +197,14 @@ export const useSocket = (
 
     isProcessingRef.current = false;
     processEventQueue();
-  }, [dispatch, setOrders, sendPushNotification, latestOrder, areOrdersEqual, buildPushNotificationOrder]);
+  }, [
+    dispatch,
+    setOrders,
+    sendPushNotification,
+    latestOrder,
+    areOrdersEqual,
+    buildPushNotificationOrder,
+  ]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -184,10 +217,18 @@ export const useSocket = (
       extraHeaders: {
         auth: `Bearer ${accessToken}`,
       },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      autoConnect: true,
+      withCredentials: true,
     });
 
     socketInstance.on("connect", () => {
-      console.log("Connected to restaurant order tracking server, ID:", socketInstance.id);
+      console.log(
+        "Connected to restaurant order tracking server, ID:",
+        socketInstance.id
+      );
       setSocket(socketInstance);
       eventQueueRef.current = [];
       processedEventIds.current.clear();
@@ -195,9 +236,14 @@ export const useSocket = (
     });
 
     socketInstance.on("incomingOrderForRestaurant", (response) => {
-      console.log("Received incomingOrderForRestaurant at:", new Date().toISOString());
+      console.log(
+        "Received incomingOrderForRestaurant at:",
+        new Date().toISOString()
+      );
       console.log("Response data:", JSON.stringify(response, null, 2));
-      const eventId = `${response.orderId ?? response.id ?? "unknown"}_${response.updated_at ?? Date.now()}`;
+      const eventId = `${response.orderId ?? response.id ?? "unknown"}_${
+        response.updated_at ?? Date.now()
+      }`;
       eventQueueRef.current.push({
         event: "incomingOrderForRestaurant",
         data: response,
@@ -209,7 +255,10 @@ export const useSocket = (
     });
 
     socketInstance.on("notifyOrderStatus", (response) => {
-      console.log("Received notifyOrderStatus:", JSON.stringify(response, null, 2));
+      console.log(
+        "Received notifyOrderStatus:",
+        JSON.stringify(response, null, 2)
+      );
       const eventId = `${response.orderId}_${response.updated_at}`;
       eventQueueRef.current.push({
         event: "notifyOrderStatus",
@@ -222,7 +271,10 @@ export const useSocket = (
     });
 
     socketInstance.on("disconnect", (reason) => {
-      console.log("Disconnected from restaurant order tracking server:", reason);
+      console.log(
+        "Disconnected from restaurant order tracking server:",
+        reason
+      );
       setSocket(null);
     });
 

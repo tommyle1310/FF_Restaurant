@@ -26,6 +26,14 @@ export const colors = {
   grey: "#9E9E9E",
   lightGrey: "#E0E0E0",
   transparent: "transparent",
+
+  // New additions
+  violet: "#8B5CF6", // Soft violet (Tailwind violet-500)
+  violet_light: "#EDE9FE", // Light background-friendly violet
+  beige: "#F5F5DC", // Classic beige
+  beige_light: "#FAF9F6", // Off-white beige for subtle backgrounds
+  green_soft: "#A7E69F", // A pastel version of primary for soft UI
+  green_muted: "#D3F0CD", // Muted green background
 };
 
 export type Colors = typeof colors;
