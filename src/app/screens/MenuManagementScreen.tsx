@@ -113,9 +113,7 @@ const MenuManagement = () => {
   const handleToggleAvailability = async (item: MenuItem) => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.patch(`/menu-items/${item.id}`, {
-        availability: !item.availability,
-      });
+      const response = await axiosInstance.patch(`/menu-items/${item.id}/toggle-availability`);
 
       if (response.data.EC === 0) {
         setMenuItems((prevItems) =>
