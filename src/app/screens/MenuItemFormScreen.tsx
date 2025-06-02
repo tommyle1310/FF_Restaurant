@@ -204,9 +204,9 @@ const MenuItemFormScreen = () => {
         })),
       };
 
-      if (discountPrice) {
-        reqBody.discount_price = parseFloat(discountPrice);
-      }
+      // if (discountPrice) {
+      //   reqBody.discount_price = parseFloat(discountPrice);
+      // }
 
       const endpoint = menuItemId
         ? `/restaurants/menu-items/${globalState.restaurant_id}/${menuItemId}`

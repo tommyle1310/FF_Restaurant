@@ -80,7 +80,7 @@ export default function PromotionListScreen() {
       const current: Promotion[] = [];
       const expired: Promotion[] = [];
       const flashFood: Promotion[] = [];
-  
+      console.log('check promo', allPromotions)
       allPromotions.forEach((promo: Promotion) => {
         const isExpired = parseInt(promo.end_date) < currentTime;
         const isCurrentRestaurant =

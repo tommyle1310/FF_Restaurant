@@ -147,9 +147,9 @@ const PaymentMethodScreen = () => {
           <FFText fontSize="md" fontWeight="500">
             FWallet
           </FFText>
-          <FFText fontSize="sm" style={styles.cardNumber}>
-            fwalletid
-          </FFText>
+          {/* <FFText fontSize="sm" style={styles.cardNumber}>
+            {fWallet_id}
+          </FFText> */}
         </FFView>
 
         {/* Transaction History Section */}

@@ -142,7 +142,7 @@ const MenuManagement = () => {
   }
 
   return (
-    <FFView style={styles.container}>
+    <FFView style={styles.container} colorDark={colors.black}>
       <FFModal
         visible={isShowStatusModal}
         onClose={() => setIsShowStatusModal(false)}
@@ -169,7 +169,7 @@ const MenuManagement = () => {
             <FFText
               fontSize="sm"
               style={{
-                color: selectedCategory === tab ? colors.primary : "#666",
+                color: selectedCategory === tab ? colors.white : "#666",
               }}
             >
               {tab}
@@ -252,12 +252,11 @@ const MenuManagement = () => {
 
       {/* Add Item Button */}
       <FFButton
-        variant="primary"
         className="w-full"
         style={styles.addButton}
         onPress={() => navigation.navigate("MenuItemForm")}
       >
-        Add new menu item
+       Add new menu item
       </FFButton>
     </FFView>
   );
@@ -266,100 +265,140 @@ const MenuManagement = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background || '#F8FAFC', // Light, modern background
   },
   tabContainer: {
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
+    width: '100%',
+    flexDirection: 'row',
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
-    width: "100%",
-    flexDirection: "row",
-    borderBottomColor: "#eee",
+    borderBottomColor: colors.grey || '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginHorizontal: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.xs,
+    justifyContent: 'center',
     flex: 1,
-    alignItems: "center",
+    alignItems: 'center',
+    borderRadius: 8,
+    // Smooth transition for active state
+    transitionProperty: 'background-color, border-color',
+    transitionDuration: '200ms',
   },
   activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: theme.colors.primary,
-  },
-  tabText: {
-    color: "#666",
-  },
-  activeTabText: {
-    color: theme.colors.primary,
+    backgroundColor: colors.primary || '#E6F0FF', // Subtle primary shade
+    // borderBottomWidth: 3,
+    // borderBottomColor: colors.primary || '#3B82F6',
   },
   menuList: {
     flex: 1,
-    padding: 16,
+    padding: spacing.lg,
+    backgroundColor: colors.background || '#F8FAFC',
   },
   menuItem: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 12,
-    padding: 12,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    borderRadius: 12,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowRadius: 6,
+    elevation: 4,
+    // Subtle scale animation on press
+    transitionProperty: 'transform',
+    transitionDuration: '150ms',
   },
   menuItemContent: {
-    flexDirection: "row",
-    // alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'flex-start', // Align top for variants
   },
   itemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    marginRight: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.lightGrey || '#F1F5F9',
+    // Smooth image loading
+    resizeMode: 'cover',
   },
   itemDetails: {
     flex: 1,
+    gap: spacing.xs,
   },
   price: {
-    color: colors.info,
-    marginTop: 4,
+    color: colors.info || '#10B981',
+    fontSize: 16,
+    fontWeight: '500',
+    // marginTop: spacing.xs,
   },
   soldCount: {
-    color: "#999",
-    marginTop: 2,
+    color: colors.textSecondary || '#6B7280',
+    fontSize: 14,
+    // marginTop: spacing.xs,
   },
   itemActions: {
-    // flexDirection: "colu",
-    alignItems: "center",
+    flexDirection: 'column', // Fixed typo from 'colu' to 'column'
+    alignItems: 'center',
     gap: spacing.md,
   },
   moreButton: {
-    padding: 4,
+    padding: spacing.xs,
+    borderRadius: 6,
+    backgroundColor: colors.grey || '#F1F5F9',
+    // Hover effect
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
   },
   addButton: {
-    margin: 16,
+    margin: spacing.lg,
     marginBottom: spacing.veryLarge,
-    borderRadius: 8,
-    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: `linear-gradient(90deg, ${colors.primary || '#3B82F6'} 0%, ${
+      colors.primary_dark || '#2563EB'
+    } 100%)`, // Gradient for modern look
+    shadowColor: colors.primary || '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    // Scale animation on press
+    transitionProperty: 'transform',
+    transitionDuration: '150ms',
   },
   statusModalContent: {
-    padding: spacing.md,
-    alignItems: "center",
-    gap: spacing.md,
+    padding: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.lg,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
   },
   statusModalButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary || '#3B82F6',
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: 8,
-    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 10,
+    // Hover effect
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
   },
   statusModalButtonText: {
     color: colors.white,
-    textAlign: "center",
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

@@ -60,6 +60,7 @@ export type Type_PushNotification_Order = {
   order_items: {
     item_id: string;
     variant_id: string;
+    variant_name?: string;
     name: string;
     quantity: number;
     price_at_time_of_order: string;

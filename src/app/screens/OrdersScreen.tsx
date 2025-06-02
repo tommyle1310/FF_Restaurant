@@ -231,9 +231,8 @@ const OrderCard = ({
   };
 
   return (
-    <TouchableOpacity
+    <FFView
       onPress={() => setIsExpanded(!isExpanded)}
-      activeOpacity={0.7}
       style={styles.orderCard}
     >
       <View pointerEvents="none">
@@ -287,7 +286,7 @@ const OrderCard = ({
               {orderItem.variant_id && (
                 <FFText style={styles.variantText}>
                   {" "}
-                  (Variant: {orderItem.variant_id})
+                  (Variant: {orderItem.variant_name})
                 </FFText>
               )}
             </FFText>
@@ -357,7 +356,7 @@ const OrderCard = ({
             </FFText>
           </TouchableOpacity>
         )}
-    </TouchableOpacity>
+    </FFView>
   );
 };
 
@@ -504,12 +503,12 @@ export default function OrderScreen() {
     try {
       const restaurantId = id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927";
       const response = await axiosInstance.get<ApiResponse>(
-        `/restaurants/${restaurantId}/orders?limit=50&status=DELIVERED`
+        `/restaurants/${restaurantId}/orders?limit=50`
       );
 
       if (response.data.EC === 0) {
         const apiOrders = response.data.data.orders;
-        console.log("Fetched completed orders:", apiOrders.length);
+        console.log("Fetched completed orders:", apiOrders?.[0]?.order_items?.[0]);
         const formattedOrders = apiOrders.map((order) => ({
           orderId: order.id,
           customer_id: order.customer_id,
@@ -518,6 +517,7 @@ export default function OrderScreen() {
           order_items: order.order_items.map((item) => ({
             item_id: item.item_id,
             variant_id: item.variant_id || "",
+            variant_name: item.menu_item_variant?.variant || "",
             name: item.menu_item?.name || item.name || "Unknown Item",
             quantity: item.quantity,
             price_at_time_of_order: item.price_at_time_of_order.toString(),
@@ -569,6 +569,9 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
+        console.log('hcek cwhate here', formattedOrders.filter(
+          (item) => item.status === Enum_OrderStatus.DELIVERED
+        )?.[0]?.order_items?.[0]?.variant_name)
         setCompletedOrders(
           formattedOrders.filter(
             (item) => item.status === Enum_OrderStatus.DELIVERED
@@ -602,6 +605,7 @@ export default function OrderScreen() {
           order_items: order.order_items.map((item) => ({
             item_id: item.item_id,
             variant_id: item.variant_id || "",
+            variant_name: item.menu_item_variant?.variant || "",
             name: item.menu_item?.name || item.name || "Unknown Item",
             quantity: item.quantity,
             price_at_time_of_order: item.price_at_time_of_order.toString(),
@@ -860,7 +864,7 @@ export default function OrderScreen() {
   const CompletedOrders = () => {
     console.log(
       "Completed orders:",
-      completedOrders.map((o) => ({ id: o.orderId, status: o.status }))
+      completedOrders?.[0]?.order_items?.[0]
     );
     return (
       <FlatList
@@ -975,7 +979,7 @@ const styles = StyleSheet.create<Styles>({
     paddingBottom: spacing.veryLarge,
   },
   orderCard: {
-    backgroundColor: colors.background,
+    // backgroundColor: colors.background,
     borderRadius: borderRadius.card,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -1055,7 +1059,7 @@ const styles = StyleSheet.create<Styles>({
     borderRadius: borderRadius.sm,
   },
   tabBar: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.black,
     width: "100%",
     ...shadows.xs,
   },
