@@ -267,7 +267,7 @@ const MainStackScreen = () => {
     latestOrder?.order_items
   );
 
-  if (isLoading) <Spinner isVisible isOverlay />;
+  if (isLoading) return <Spinner isVisible isOverlay />;
 
   return (
     <>

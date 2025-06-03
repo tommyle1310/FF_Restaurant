@@ -12,13 +12,14 @@ import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import { useSelector, useDispatch } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import FFAvatar from "@/src/components/FFAvatar";
-import { colors } from "@/src/theme";
+import { colors, spacing } from "@/src/theme";
 import {
   toggleAvailability,
   setAuthState,
   saveTokenToAsyncStorage,
 } from "@/src/store/authSlice";
 import FFModal from "@/src/components/FFModal";
+import { useTheme } from "@/src/hooks/useTheme";
 
 type HomeNavigationProps = StackNavigationProp<
   MainStackParamList,
@@ -28,6 +29,7 @@ type HomeNavigationProps = StackNavigationProp<
 const HomeScreen = () => {
   const navigation = useNavigation<HomeNavigationProps>();
   const dispatch = useDispatch();
+  const { theme } = useTheme();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
@@ -176,21 +178,62 @@ const HomeScreen = () => {
   ];
 
   return (
-    <FFSafeAreaView style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
+    <FFSafeAreaView style={{ flex: 1, backgroundColor: "#fafbfc" }}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header Section stays outside ScrollView */}
-      <View
+      {/* Header Section */}
+      <LinearGradient
+        colors={[
+          theme === "light" ? colors.beige : colors.grey,
+          theme === "light" ? colors.white : "#444",
+        ]}
         style={{
-          padding: 20,
-          backgroundColor: "#fff",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 15,
-          elevation: 2,
+          paddingHorizontal: 24,
+          paddingVertical: 28,
+          borderBottomLeftRadius: 32,
+          borderBottomRightRadius: 32,
+          shadowColor: "#1f2937",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.08,
+          shadowRadius: 24,
+          elevation: 8,
         }}
       >
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flex: 1, marginRight: 16 }}>
+            <FFText
+              style={{
+                fontSize: 28,
+                fontWeight: "800",
+                letterSpacing: -0.5,
+                lineHeight: 34,
+              }}
+            >
+              {restaurant_name}
+            </FFText>
+          </View>
+
+          <View
+            style={{
+              shadowColor: "#1f2937",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
+              elevation: 4,
+            }}
+          >
+            <FFAvatar size={48} avatar={avatar?.url} />
+          </View>
+        </View>
+
+        {/* Status Toggle */}
         <View
           style={{
             flexDirection: "row",
@@ -198,194 +241,317 @@ const HomeScreen = () => {
             alignItems: "center",
           }}
         >
-          <View style={{ width: "70%" }}>
-            <FFText
-              style={{ fontSize: 24, fontWeight: "bold", color: "#1a1a1a" }}
+          {address?.street && address?.city && address?.nationality ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginTop: 8,
+                backgroundColor: "#f1f5f9",
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 12,
+                alignSelf: "flex-start",
+              }}
             >
-              {restaurant_name}
-            </FFText>
-            {address?.street && address?.city && address?.nationality ? (
-              <FFText style={{ fontSize: 14, color: "#666", marginTop: 4 }}>
-                {address?.street}, {address?.city}, {address?.nationality}
+              <Ionicons
+                name="location-outline"
+                size={14}
+                color="#64748b"
+                style={{ marginRight: 6 }}
+              />
+              <FFText
+                style={{
+                  fontSize: 13,
+                  color: "#64748b",
+                  fontWeight: "500",
+                }}
+              >
+                {address?.street}, {address?.city}
               </FFText>
-            ) : (
-              <FFText style={{ color: colors.grey }}>Unknown Address</FFText>
-            )}
-          </View>
-          <FFAvatar size={40} avatar={avatar?.url} />
-        </View>
-        <View
-          style={{
-            marginTop: 12,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
+            </View>
+          ) : (
+            <FFText style={{ color: colors.grey, fontSize: 13, marginTop: 8 }}>
+              Unknown Address
+            </FFText>
+          )}
           <TouchableOpacity
             onPress={handleToggleAvailability}
             style={{
-              backgroundColor: status?.is_open ? "#dcfce7" : "#fee2e2",
-              paddingHorizontal: 12,
-              paddingVertical: 6,
+              backgroundColor: status?.is_open
+                ? theme === "light"
+                  ? "rgba(34, 197, 94, 0.12)"
+                  : "rgba(34, 197, 94, 0.4)"
+                : theme === "light"
+                ? "rgba(239, 68, 68, 0.12)"
+                : "rgba(239, 68, 68, 0.4)",
+              paddingHorizontal: 16,
+              paddingVertical: 10,
               borderRadius: 20,
               flexDirection: "row",
               alignItems: "center",
+              alignSelf: "flex-start",
+              borderWidth: 1,
+              borderColor: status?.is_open
+                ? "rgba(34, 197, 94, 0.2)"
+                : "rgba(239, 68, 68, 0.2)",
             }}
           >
             <View
               style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
+                width: 8,
+                height: 8,
+                borderRadius: 4,
                 backgroundColor: status?.is_open ? "#22c55e" : "#ef4444",
-                marginRight: 6,
+                marginRight: 8,
               }}
             />
             <FFText
               style={{
-                color: status?.is_open ? "#22c55e" : "#ef4444",
-                fontSize: 13,
+                color: status?.is_open ? "#16a34a" : "#dc2626",
+                fontSize: 14,
+                fontWeight: "600",
               }}
             >
-              {status?.is_open ? "Opening" : "Closed"}
+              {status?.is_open ? "Open Now" : "Closed"}
             </FFText>
           </TouchableOpacity>
         </View>
-      </View>
+      </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 32 }}
+      >
         {/* Daily Stats Card */}
-        <LinearGradient
-          colors={["#a3d98f", "#3e7c2a"]}
+        <View
           style={{
-            margin: 20,
-            borderRadius: 20,
-            padding: 20,
-            shadowColor: "#fb923c",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 12,
-            elevation: 4,
+            marginHorizontal: 24,
+            marginTop: 24,
           }}
         >
-          {/* First Row */}
-          <View style={{ marginBottom: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
+          <LinearGradient
+            colors={[
+              theme === "light" ? colors.info : "#444",
+              theme === "light" ? colors.primary : colors.primary_dark,
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              borderRadius: 24,
+              padding: 24,
+              shadowColor: "#667eea",
+              shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.25,
+              shadowRadius: 24,
+              elevation: 12,
+            }}
+          >
+            <View style={{ marginBottom: 20 }}>
+              <FFText
                 style={{
-                  backgroundColor: "#fff",
-                  padding: 8,
-                  borderRadius: 12,
-                  marginRight: 12,
+                  color: "rgba(255, 255, 255, 0.8)",
+                  fontSize: 14,
+                  fontWeight: "500",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
                 }}
               >
-                <Ionicons name="stats-chart" size={20} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <FFText style={{ color: "#eee", fontSize: 13 }}>
-                  Today's Revenue
-                </FFText>
-                <FFText
-                  style={{
-                    fontSize: 20,
-                    fontWeight: "bold",
-                    color: "#fff",
-                    marginTop: 2,
-                  }}
-                >
-                  ${isLoadingStats ? "..." : dailyStats.revenue.toFixed(2)}
-                </FFText>
+                Today's Performance
+              </FFText>
+            </View>
+
+            {/* Revenue Section */}
+            <View
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.15)",
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <View
+                      style={{
+                        backgroundColor: "rgba(255, 255, 255, 0.25)",
+                        padding: spacing.sm,
+                        borderRadius: 16,
+                        marginRight: 12,
+                      }}
+                    >
+                      <Ionicons name="trending-up" size={22} color="#ffffff" />
+                    </View>
+                    <FFText
+                      style={{
+                        color: "rgba(255, 255, 255, 0.9)",
+                        fontSize: 15,
+                        fontWeight: "500",
+                      }}
+                    >
+                      Revenue
+                    </FFText>
+                  </View>
+                  <FFText
+                    fontSize="xl"
+                    style={{
+                      fontWeight: "800",
+                      color: "#ffffff",
+                      letterSpacing: -1,
+                    }}
+                  >
+                    ${isLoadingStats ? "..." : dailyStats.revenue.toFixed(2)}
+                  </FFText>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Divider */}
-          <View
-            style={{
-              borderBottomWidth: 1,
-              borderBottomColor: "rgba(0,0,0,0.06)",
-              marginBottom: 16,
-            }}
-          />
-
-          {/* Second Row */}
-          <View style={{ marginBottom: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {/* Orders and Top Dish Row */}
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              {/* Orders */}
               <View
                 style={{
-                  backgroundColor: "#fff",
-                  padding: 8,
-                  borderRadius: 12,
-                  marginRight: 12,
+                  flex: 1,
+                  backgroundColor: "rgba(255, 255, 255, 0.12)",
+                  borderRadius: 18,
+                  padding: 18,
                 }}
               >
-                <Ionicons
-                  name="document-text"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <FFText style={{ color: "#eee" }}>Orders Today</FFText>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255, 255, 255, 0.2)",
+                      padding: 8,
+                      borderRadius: 12,
+                      marginRight: 8,
+                    }}
+                  >
+                    <Ionicons
+                      name="receipt-outline"
+                      size={18}
+                      color="#ffffff"
+                    />
+                  </View>
+                </View>
                 <FFText
                   style={{
-                    fontWeight: "600",
-                    color: "#fff",
-                    marginTop: 2,
+                    color: "rgba(255, 255, 255, 0.8)",
+                    fontSize: 13,
+                    fontWeight: "500",
+                    marginBottom: 4,
+                  }}
+                >
+                  Orders
+                </FFText>
+                <FFText
+                  fontSize="lg"
+                  style={{
+                    fontWeight: "700",
+                    color: "#ffffff",
+                    letterSpacing: -0.5,
                   }}
                 >
                   {isLoadingStats ? "..." : dailyStats.orders}
                 </FFText>
               </View>
-            </View>
-          </View>
 
-          {/* Divider */}
-          <View
-            style={{
-              borderBottomWidth: 1,
-              borderBottomColor: "rgba(0,0,0,0.06)",
-              marginBottom: 16,
-            }}
-          />
-
-          {/* Third Row */}
-          <View>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              {/* Top Dish */}
               <View
                 style={{
-                  backgroundColor: "#fff",
-                  padding: 8,
-                  borderRadius: 12,
-                  marginRight: 12,
+                  flex: 1,
+                  backgroundColor: "rgba(255, 255, 255, 0.12)",
+                  borderRadius: 18,
+                  padding: 18,
                 }}
               >
-                <Ionicons name="restaurant" size={20} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <FFText style={{ color: "#eee" }}>Top Selling Item</FFText>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255, 255, 255, 0.2)",
+                      padding: 8,
+                      borderRadius: 12,
+                      marginRight: 8,
+                    }}
+                  >
+                    <Ionicons name="star" size={18} color="#ffffff" />
+                  </View>
+                </View>
+                <FFText
+                  style={{
+                    color: "rgba(255, 255, 255, 0.8)",
+                    fontSize: 13,
+                    fontWeight: "500",
+                    marginBottom: 4,
+                  }}
+                >
+                  Top Item
+                </FFText>
                 <FFText
                   style={{
                     fontWeight: "600",
-                    color: "#fff",
-                    marginTop: 2,
+                    color: "#ffffff",
+                    fontSize: 14,
+                    lineHeight: 20,
                   }}
                 >
                   {isLoadingStats ? "..." : dailyStats.topDish}
                 </FFText>
               </View>
             </View>
-          </View>
-        </LinearGradient>
+          </LinearGradient>
+        </View>
 
         {/* Menu Grid */}
-        <View style={{ padding: 20, paddingBottom: 100 }}>
+        <View
+          style={{
+            paddingHorizontal: 24,
+            paddingTop: 32,
+          }}
+        >
+          <FFText
+            style={{
+              fontWeight: "700",
+              marginBottom: 20,
+              letterSpacing: -0.3,
+            }}
+            fontSize="lg"
+          >
+            Quick Actions
+          </FFText>
+
           <View
             style={{
               flexDirection: "row",
               flexWrap: "wrap",
-              justifyContent: "center",
-              gap: 12,
+              paddingBottom: spacing.veryLarge,
+              justifyContent: "space-between",
+              // gap: 16,
             }}
           >
             {menuItems.map((item) => (
@@ -394,40 +560,44 @@ const HomeScreen = () => {
                 style={{
                   width: "30%",
                   aspectRatio: 1,
-                  // flex: 1,
-                  backgroundColor: "#fff",
-                  borderRadius: 16,
-                  padding: 12,
+                  // backgroundColor: "#ffffff",
+                  borderRadius: 20,
+                  paddingVertical: 16,
+                  marginBottom: spacing.md,
                   justifyContent: "center",
                   alignItems: "center",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 8,
-                  elevation: 2,
+                  shadowColor: "#1f2937",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.06,
+                  shadowRadius: 16,
+                  // elevation: 4,
+                  // borderWidth: 0.5,
+                  // borderColor: "rgba(241, 245, 249, 0.8)",
                 }}
                 onPress={item.onPress}
+                activeOpacity={0.7}
               >
-                <View
+                <LinearGradient
+                  colors={[colors.green_muted, colors.beige_light]}
                   style={{
-                    backgroundColor: "#f8f9fa",
-                    padding: 10,
-                    borderRadius: 12,
-                    marginBottom: 8,
+                    padding: spacing.sm,
+                    borderRadius: 16,
+                    marginBottom: spacing.sm,
                   }}
                 >
                   <Ionicons
                     name={item.icon as any}
-                    size={24}
+                    size={26}
                     color={colors.primary}
                   />
-                </View>
+                </LinearGradient>
                 <FFText
                   style={{
                     fontSize: 12,
                     textAlign: "center",
-                    color: "#1a1a1a",
-                    fontWeight: "500",
+                    // color: "#374151",
+                    fontWeight: "600",
+                    lineHeight: 18,
                   }}
                 >
                   {item.label}
@@ -442,8 +612,34 @@ const HomeScreen = () => {
         visible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
       >
-        <View style={{ padding: 20, alignItems: "center" }}>
-          <FFText style={{ fontSize: 16, textAlign: "center" }}>
+        <View
+          style={{
+            padding: 24,
+            alignItems: "center",
+            backgroundColor: "#ffffff",
+            borderRadius: 24,
+            margin: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fee2e2",
+              padding: 16,
+              borderRadius: 20,
+              marginBottom: 16,
+            }}
+          >
+            <Ionicons name="alert-circle" size={32} color="#ef4444" />
+          </View>
+          <FFText
+            style={{
+              fontSize: 16,
+              textAlign: "center",
+              color: "#374151",
+              fontWeight: "500",
+              lineHeight: 24,
+            }}
+          >
             {modalMessage}
           </FFText>
         </View>

@@ -7,7 +7,10 @@ import {
   Type_PushNotification_Order,
   Enum_OrderTrackingInfo,
 } from "@/src/types/Orders";
-import { updateAndSaveOrderTracking } from "@/src/store/restaurantOrderTrackingSlice";
+import {
+  updateAndSaveOrderTracking,
+  removeOrderTracking,
+} from "@/src/store/restaurantOrderTrackingSlice";
 
 export const useSocket = (
   restaurantId: string,
@@ -132,10 +135,12 @@ export const useSocket = (
         },
       };
 
+      // Log warning for incomplete data but allow processing for CANCELLED/REJECTED
       if (
         !order.orderId ||
-        order.total_amount === 0 ||
-        !order.order_items.length
+        (order.total_amount === 0 &&
+          order.order_items.length === 0 &&
+          !["CANCELLED", "REJECTED"].includes(order.status))
       ) {
         console.warn("Incomplete order constructed:", order);
       }
@@ -181,14 +186,27 @@ export const useSocket = (
 
       console.log(`Constructed order:`, JSON.stringify(order, null, 2));
 
-      if (!areOrdersEqual(order, latestOrder)) {
-        console.log(`Processed ${event}:`, order.orderId, {
-          total_amount: order.total_amount,
-          order_items: order.order_items,
-          updated_at: order.updated_at,
-        });
-
-        // Validate order before updating
+      // For CANCELLED or REJECTED orders, remove from Redux and AsyncStorage
+      if (["CANCELLED", "REJECTED"].includes(order.status)) {
+        console.log(
+          `Order ${order.orderId} is ${order.status}, removing from active orders`
+        );
+        dispatch(removeOrderTracking(order.orderId));
+        // Update cancelled orders if setOrders is provided
+        if (setOrders) {
+          setOrders((prev) => {
+            const exists = prev.some((o) => o.orderId === order.orderId);
+            if (exists) {
+              return prev.map((o) => (o.orderId === order.orderId ? order : o));
+            }
+            return [...prev, order];
+          });
+        }
+        if (sendPushNotification) {
+          sendPushNotification(order);
+        }
+      } else {
+        // Validate order for active states
         if (order.total_amount === 0 || order.order_items.length === 0) {
           console.warn(
             "Skipping update due to incomplete order data:",
@@ -199,26 +217,36 @@ export const useSocket = (
           return;
         }
 
-        dispatch(updateAndSaveOrderTracking(order));
-        setLatestOrder(order);
-
-        if (setOrders) {
-          setOrders((prev) => {
-            const exists = prev.some((o) => o.orderId === order.orderId);
-            if (exists) {
-              return prev.map((o) => (o.orderId === order.orderId ? order : o));
-            }
-            return [...prev, order];
+        if (!areOrdersEqual(order, latestOrder)) {
+          console.log(`Processed ${event}:`, order.orderId, {
+            total_amount: order.total_amount,
+            order_items: order.order_items,
+            updated_at: order.updated_at,
           });
-        }
 
-        if (sendPushNotification) {
-          sendPushNotification(order);
-        }
+          dispatch(updateAndSaveOrderTracking(order));
+          setLatestOrder(order);
 
-        console.log("Updated latestOrder:", JSON.stringify(order, null, 2));
-      } else {
-        console.log(`Duplicate ${event} ignored:`, order.orderId);
+          if (setOrders) {
+            setOrders((prev) => {
+              const exists = prev.some((o) => o.orderId === order.orderId);
+              if (exists) {
+                return prev.map((o) =>
+                  o.orderId === order.orderId ? order : o
+                );
+              }
+              return [...prev, order];
+            });
+          }
+
+          if (sendPushNotification) {
+            sendPushNotification(order);
+          }
+
+          console.log("Updated latestOrder:", JSON.stringify(order, null, 2));
+        } else {
+          console.log(`Duplicate ${event} ignored:`, order.orderId);
+        }
       }
     } catch (error) {
       console.error(`Error processing ${event}:`, error);

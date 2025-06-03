@@ -24,6 +24,7 @@ import { Alert } from "react-native";
 import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import FFModal from "@/src/components/FFModal";
+import { useTheme } from "@/src/hooks/useTheme";
 
 interface MenuItem {
   id: string;
@@ -75,6 +76,7 @@ const MenuManagement = () => {
   const [statusMessage, setStatusMessage] = useState("");
   const [expandedVariants, setExpandedVariants] = useState<string | null>(null);
   const globalState = useSelector((state: RootState) => state.auth);
+  const { theme } = useTheme();
 
   const fetchMenuItems = async () => {
     setIsLoading(true);
@@ -113,7 +115,9 @@ const MenuManagement = () => {
   const handleToggleAvailability = async (item: MenuItem) => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.patch(`/menu-items/${item.id}/toggle-availability`);
+      const response = await axiosInstance.patch(
+        `/menu-items/${item.id}/toggle-availability`
+      );
 
       if (response.data.EC === 0) {
         setMenuItems((prevItems) =>
@@ -140,7 +144,13 @@ const MenuManagement = () => {
   }
 
   return (
-    <FFView style={styles.container} colorDark={colors.black}>
+    <FFView
+      style={{
+        ...styles.container,
+        backgroundColor: theme === "light" ? colors.background : colors.black,
+      }}
+      colorDark={colors.black}
+    >
       <FFModal
         visible={isShowStatusModal}
         onClose={() => setIsShowStatusModal(false)}
@@ -157,7 +167,12 @@ const MenuManagement = () => {
       </FFModal>
 
       {/* Category Tabs */}
-      <View style={styles.tabContainer}>
+      <View
+        style={{
+          ...styles.tabContainer,
+          backgroundColor: theme === "light" ? colors.white : colors.black,
+        }}
+      >
         {["Menu Item", "Recommended Menu Item"]?.map((tab) => (
           <TouchableOpacity
             key={tab}
@@ -177,7 +192,12 @@ const MenuManagement = () => {
       </View>
 
       {/* Menu Items List */}
-      <ScrollView style={styles.menuList}>
+      <ScrollView
+        style={{
+          ...styles.menuList,
+          backgroundColor: theme === "light" ? colors.background : colors.black,
+        }}
+      >
         {menuItems?.map((item) => (
           <FFView
             onPress={() => {
@@ -254,7 +274,7 @@ const MenuManagement = () => {
         style={styles.addButton}
         onPress={() => navigation.navigate("MenuItemForm")}
       >
-       Add new menu item
+        Add new menu item
       </FFButton>
     </FFView>
   );
@@ -263,16 +283,15 @@ const MenuManagement = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background || '#F8FAFC', // Light, modern background
+    // backgroundColor: colors.background || "#F8FAFC", // Light, modern background
   },
   tabContainer: {
     paddingVertical: spacing.sm,
-    width: '100%',
-    flexDirection: 'row',
-    backgroundColor: colors.white,
+    width: "100%",
+    flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: colors.grey || '#E5E7EB',
-    shadowColor: '#000',
+    borderBottomColor: colors.grey || "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -282,41 +301,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     marginHorizontal: spacing.xs,
-    justifyContent: 'center',
+    justifyContent: "center",
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
     // Smooth transition for active state
-    transitionProperty: 'background-color, border-color',
-    transitionDuration: '200ms',
+    transitionProperty: "background-color, border-color",
+    transitionDuration: "200ms",
   },
   activeTab: {
-    backgroundColor: colors.primary || '#E6F0FF', // Subtle primary shade
+    backgroundColor: colors.primary || "#E6F0FF", // Subtle primary shade
     // borderBottomWidth: 3,
     // borderBottomColor: colors.primary || '#3B82F6',
   },
   menuList: {
     flex: 1,
     padding: spacing.lg,
-    backgroundColor: colors.background || '#F8FAFC',
   },
   menuItem: {
     borderRadius: 12,
     marginBottom: spacing.md,
     padding: spacing.md,
-    backgroundColor: colors.white,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 4,
     // Subtle scale animation on press
-    transitionProperty: 'transform',
-    transitionDuration: '150ms',
+    transitionProperty: "transform",
+    transitionDuration: "150ms",
   },
   menuItemContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start', // Align top for variants
+    flexDirection: "row",
+    alignItems: "flex-start", // Align top for variants
   },
   itemImage: {
     width: 64,
@@ -324,79 +341,79 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: spacing.md,
     borderWidth: 1,
-    borderColor: colors.lightGrey || '#F1F5F9',
+    borderColor: colors.lightGrey || "#F1F5F9",
     // Smooth image loading
-    resizeMode: 'cover',
+    resizeMode: "cover",
   },
   itemDetails: {
     flex: 1,
     gap: spacing.xs,
   },
   price: {
-    color: colors.info || '#10B981',
+    color: colors.info || "#10B981",
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
     // marginTop: spacing.xs,
   },
   soldCount: {
-    color: colors.textSecondary || '#6B7280',
+    color: colors.textSecondary || "#6B7280",
     fontSize: 14,
     // marginTop: spacing.xs,
   },
   itemActions: {
-    flexDirection: 'column', // Fixed typo from 'colu' to 'column'
-    alignItems: 'center',
+    flexDirection: "column", // Fixed typo from 'colu' to 'column'
+    alignItems: "center",
     gap: spacing.md,
   },
   moreButton: {
     padding: spacing.xs,
     borderRadius: 6,
-    backgroundColor: colors.grey || '#F1F5F9',
+    backgroundColor: colors.grey || "#F1F5F9",
     // Hover effect
-    transitionProperty: 'background-color',
-    transitionDuration: '150ms',
+    transitionProperty: "background-color",
+    transitionDuration: "150ms",
   },
   addButton: {
     margin: spacing.lg,
     marginBottom: spacing.veryLarge,
     borderRadius: 10,
-    backgroundColor: `linear-gradient(90deg, ${colors.primary || '#3B82F6'} 0%, ${
-      colors.primary_dark || '#2563EB'
-    } 100%)`, // Gradient for modern look
-    shadowColor: colors.primary || '#3B82F6',
+    backgroundColor: `linear-gradient(90deg, ${
+      colors.primary || "#3B82F6"
+    } 0%, ${colors.primary_dark || "#2563EB"} 100%)`, // Gradient for modern look
+    shadowColor: colors.primary || "#3B82F6",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     // Scale animation on press
-    transitionProperty: 'transform',
-    transitionDuration: '150ms',
+    transitionProperty: "transform",
+    transitionDuration: "150ms",
   },
   statusModalContent: {
     padding: spacing.lg,
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing.lg,
-    backgroundColor: colors.white,
+    backgroundColor: "orange",
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 5,
   },
   statusModalButton: {
-    backgroundColor: colors.primary || '#3B82F6',
+    backgroundColor: colors.primary || "#3B82F6",
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: 10,
     // Hover effect
-    transitionProperty: 'background-color',
-    transitionDuration: '150ms',
+    transitionProperty: "background-color",
+    transitionDuration: "150ms",
   },
   statusModalButtonText: {
     color: colors.white,
     fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
 });
 

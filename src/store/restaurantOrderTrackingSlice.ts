@@ -1,4 +1,3 @@
-// src/store/restaurantOrderTrackingSlice.ts
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { debounce } from "lodash";
@@ -7,7 +6,6 @@ import {
   Type_PushNotification_Order,
 } from "@/src/types/Orders";
 
-// Define the order type based on the push notification structure
 export type OrderTracking = Type_PushNotification_Order;
 
 export interface RestaurantOrderTrackingState {
@@ -20,14 +18,12 @@ const initialState: RestaurantOrderTrackingState = {
   orders: [],
 };
 
-// Helper function to map order to log format
 const mapOrderToLog = (order: OrderTracking) => ({
   id: order.orderId,
   status: order.status,
   total_amount: order.total_amount,
 });
 
-// Debounced function to save to AsyncStorage
 const debouncedSaveToStorage = debounce(async (orders: OrderTracking[]) => {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
@@ -74,10 +70,8 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
       });
     }
 
-    // Store all orders in Redux
     updatedOrders.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
 
-    // Filter only active orders for AsyncStorage
     const ordersToSave = updatedOrders.filter((o) =>
       [
         Enum_OrderStatus.PENDING,
@@ -97,7 +91,7 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
     });
 
     await debouncedSaveToStorage(ordersToSave);
-    return updatedOrders; // Return all orders for Redux
+    return updatedOrders;
   }
 );
 
@@ -108,10 +102,8 @@ export const loadOrderTrackingFromAsyncStorage = createAsyncThunk(
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       const orders = stored ? JSON.parse(stored) : [];
 
-      // Filter out completed/cancelled orders and sort by updated_at
       const validOrders = orders
         .filter((order: OrderTracking) =>
-          // Only keep orders in active states
           [
             Enum_OrderStatus.PENDING,
             Enum_OrderStatus.RESTAURANT_ACCEPTED,
