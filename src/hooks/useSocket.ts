@@ -5,6 +5,7 @@ import { RootState } from "@/src/store/store";
 import { BACKEND_URL } from "@/src/utils/constants";
 import {
   Type_PushNotification_Order,
+  Enum_OrderStatus,
   Enum_OrderTrackingInfo,
 } from "@/src/types/Orders";
 import {
@@ -43,7 +44,8 @@ export const useSocket = (
         newOrder.status === currentOrder.status &&
         newOrder.total_amount === currentOrder.total_amount &&
         JSON.stringify(newOrder.order_items) ===
-          JSON.stringify(currentOrder.order_items)
+          JSON.stringify(currentOrder.order_items) &&
+        newOrder.updated_at === currentOrder.updated_at
       );
     },
     []
@@ -86,7 +88,7 @@ export const useSocket = (
         orderId: response.orderId ?? response.id ?? "",
         customer_id: response.customer_id ?? "",
         total_amount: isNaN(totalAmount) ? 0 : totalAmount,
-        status: response.status ?? "PENDING",
+        status: response.status ?? Enum_OrderStatus.PENDING,
         order_items: orderItems.map((item: any, index: number) => {
           if (!item || typeof item !== "object") {
             throw new Error(`Invalid order item at index ${index}`);
@@ -94,17 +96,33 @@ export const useSocket = (
           return {
             item_id: item.item_id ?? "",
             variant_id: item.variant_id ?? "",
-            name: item.name ?? "",
+            name: item.name ?? item.menu_item?.name ?? "Unknown Item",
             quantity: Number(item.quantity ?? 0),
             price_at_time_of_order:
               item.price_at_time_of_order?.toString() ?? "0",
             price_after_applied_promotion:
               item.price_after_applied_promotion?.toString() ?? "0",
+            variant_name:
+              item.variant_name ?? item.menu_item_variant?.variant ?? "",
           };
         }),
         updated_at: response.updated_at ?? Date.now(),
         tracking_info:
-          response.tracking_info ?? Enum_OrderTrackingInfo.ORDER_PLACED,
+          response.status === Enum_OrderStatus.PENDING
+            ? Enum_OrderTrackingInfo.ORDER_PLACED
+            : response.status === Enum_OrderStatus.PREPARING
+            ? Enum_OrderTrackingInfo.PREPARING
+            : response.status === Enum_OrderStatus.RESTAURANT_ACCEPTED
+            ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
+            : response.status === Enum_OrderStatus.EN_ROUTE
+            ? Enum_OrderTrackingInfo.EN_ROUTE
+            : response.status === Enum_OrderStatus.READY_FOR_PICKUP
+            ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
+            : response.status === Enum_OrderStatus.RESTAURANT_PICKUP
+            ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
+            : response.status === Enum_OrderStatus.DELIVERED
+            ? Enum_OrderTrackingInfo.DELIVERED
+            : Enum_OrderTrackingInfo.CANCELLED,
         driver_id: response.driver_id ?? null,
         restaurant_id: response.restaurant_id ?? restaurantId,
         restaurant_avatar: response.restaurant_avatar ?? { key: "", url: "" },
@@ -135,16 +153,7 @@ export const useSocket = (
         },
       };
 
-      // Log warning for incomplete data but allow processing for CANCELLED/REJECTED
-      if (
-        !order.orderId ||
-        (order.total_amount === 0 &&
-          order.order_items.length === 0 &&
-          !["CANCELLED", "REJECTED"].includes(order.status))
-      ) {
-        console.warn("Incomplete order constructed:", order);
-      }
-
+      console.log(`Constructed order:`, JSON.stringify(order, null, 2));
       return order;
     },
     [restaurantId]
@@ -163,7 +172,6 @@ export const useSocket = (
     const eventKey = `${data.orderId ?? data.id ?? "unknown"}`;
     const lastUpdatedAt = processedEventIds.current.get(eventKey);
 
-    // Allow processing if the event is newer or if the order content differs
     if (
       lastUpdatedAt &&
       lastUpdatedAt >= (data.updated_at ?? Date.now()) &&
@@ -184,15 +192,23 @@ export const useSocket = (
         throw new Error("Missing orderId in constructed data");
       }
 
-      console.log(`Constructed order:`, JSON.stringify(order, null, 2));
+      console.log(`Processed ${event}:`, order.orderId, {
+        total_amount: order.total_amount,
+        order_items: order.order_items,
+        updated_at: order.updated_at,
+      });
 
-      // For CANCELLED or REJECTED orders, remove from Redux and AsyncStorage
-      if (["CANCELLED", "REJECTED"].includes(order.status)) {
+      if (
+        [
+          Enum_OrderStatus.CANCELLED,
+          Enum_OrderStatus.REJECTED,
+          Enum_OrderStatus.DELIVERED,
+        ].includes(order.status)
+      ) {
         console.log(
           `Order ${order.orderId} is ${order.status}, removing from active orders`
         );
         dispatch(removeOrderTracking(order.orderId));
-        // Update cancelled orders if setOrders is provided
         if (setOrders) {
           setOrders((prev) => {
             const exists = prev.some((o) => o.orderId === order.orderId);
@@ -206,46 +222,21 @@ export const useSocket = (
           sendPushNotification(order);
         }
       } else {
-        // Validate order for active states
-        if (order.total_amount === 0 || order.order_items.length === 0) {
-          console.warn(
-            "Skipping update due to incomplete order data:",
-            order.orderId
-          );
-          isProcessingRef.current = false;
-          processEventQueue();
-          return;
+        dispatch(updateAndSaveOrderTracking(order));
+        setLatestOrder(order);
+
+        if (setOrders) {
+          setOrders((prev) => {
+            const exists = prev.some((o) => o.orderId === order.orderId);
+            if (exists) {
+              return prev.map((o) => (o.orderId === order.orderId ? order : o));
+            }
+            return [...prev, order];
+          });
         }
 
-        if (!areOrdersEqual(order, latestOrder)) {
-          console.log(`Processed ${event}:`, order.orderId, {
-            total_amount: order.total_amount,
-            order_items: order.order_items,
-            updated_at: order.updated_at,
-          });
-
-          dispatch(updateAndSaveOrderTracking(order));
-          setLatestOrder(order);
-
-          if (setOrders) {
-            setOrders((prev) => {
-              const exists = prev.some((o) => o.orderId === order.orderId);
-              if (exists) {
-                return prev.map((o) =>
-                  o.orderId === order.orderId ? order : o
-                );
-              }
-              return [...prev, order];
-            });
-          }
-
-          if (sendPushNotification) {
-            sendPushNotification(order);
-          }
-
-          console.log("Updated latestOrder:", JSON.stringify(order, null, 2));
-        } else {
-          console.log(`Duplicate ${event} ignored:`, order.orderId);
+        if (sendPushNotification) {
+          sendPushNotification(order);
         }
       }
     } catch (error) {
@@ -275,8 +266,9 @@ export const useSocket = (
         auth: `Bearer ${accessToken}`,
       },
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       autoConnect: true,
       withCredentials: true,
     });
@@ -349,7 +341,7 @@ export const useSocket = (
         clearTimeout(responseTimeoutRef.current);
       }
     };
-  }, [accessToken, restaurantId]);
+  }, [accessToken, restaurantId, processEventQueue]);
 
   console.log("Latest order state:", JSON.stringify(latestOrder, null, 2));
 

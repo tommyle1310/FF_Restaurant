@@ -5,7 +5,6 @@ import FFModal from "@/src/components/FFModal";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   FlatList,
-  ActivityIndicator,
   Alert,
   StyleSheet,
   ViewStyle,
@@ -39,6 +38,8 @@ import {
 } from "@/src/store/restaurantOrderTrackingSlice";
 import { useTheme } from "@/src/hooks/useTheme";
 import FFInputControl from "@/src/components/FFInputControl";
+import Spinner from "@/src/components/FFSpinner";
+import { useSocket } from "@/src/hooks/useSocket";
 
 type OrderItem = {
   name: string;
@@ -46,6 +47,7 @@ type OrderItem = {
   quantity: number;
   variant_id: string;
   price_at_time_of_order: number;
+  variant_name?: string;
   menu_item: {
     id: string;
     restaurant_id: string;
@@ -291,7 +293,7 @@ const OrderCard = ({
               {orderItem.variant_id && (
                 <FFText style={styles.variantText}>
                   {" "}
-                  (Variant: {orderItem.variant_name})
+                  (Variant: {orderItem.variant_name || "N/A"})
                 </FFText>
               )}
             </FFText>
@@ -324,7 +326,7 @@ const OrderCard = ({
               })
             }
           >
-            <FFText style={{ color: colors.white }}>Acceptw</FFText>
+            <FFText style={{ color: colors.white }}>Accept</FFText>
           </TouchableOpacity>
         </FFView>
       )}
@@ -344,7 +346,7 @@ const OrderCard = ({
 
       {showActions &&
         isExpanded &&
-        item.status === Enum_OrderStatus.RESTAURANT_ACCEPTED && (
+        item.status === Enum_OrderStatus.PREPARING && (
           <TouchableOpacity
             style={[styles.updateButtonContainer, { marginTop: spacing.md }]}
             onPress={(e) =>
@@ -374,9 +376,6 @@ export default function OrderScreen() {
   const [selectedAcceptOrderId, setSelectedAcceptOrderId] = useState<
     string | null
   >(null);
-  const { restaurant_id, id: restaurantUserId } = useSelector(
-    (state: RootState) => state.auth
-  );
   const [completedOrders, setCompletedOrders] = useState<
     Type_PushNotification_Order[]
   >([]);
@@ -384,18 +383,24 @@ export default function OrderScreen() {
     Type_PushNotification_Order[]
   >([]);
   const { theme } = useTheme();
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [reason, setReason] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
 
-  const { id } = useSelector((state: RootState) => state.auth);
-  const orders = useSelector((state: RootState) => {
-    console.log("Redux orders:", state.restaurantOrderTracking.orders);
-    return state.restaurantOrderTracking.orders;
-  });
+  const { id: restaurantId, restaurant_id } = useSelector(
+    (state: RootState) => state.auth
+  );
+  const orders = useSelector(
+    (state: RootState) => state.restaurantOrderTracking.orders
+  );
   const dispatch = useDispatch();
+
+  const { socket, latestOrder } = useSocket(
+    restaurantId ?? "",
+    setCompletedOrders,
+    undefined
+  );
 
   const showModal = useCallback((title: string, subtitle: string) => {
     setModalMessage({ title, subtitle });
@@ -408,7 +413,6 @@ export default function OrderScreen() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const restaurantId = id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927";
       const response = await axiosInstance.get<ApiResponse>(
         `/restaurants/${restaurantId}/orders?limit=50`
       );
@@ -432,6 +436,7 @@ export default function OrderScreen() {
                 price_at_time_of_order: item.price_at_time_of_order.toString(),
                 price_after_applied_promotion:
                   item.price_at_time_of_order.toString(),
+                variant_name: item.menu_item_variant?.variant || "",
               })),
               updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
               tracking_info:
@@ -439,9 +444,13 @@ export default function OrderScreen() {
                   ? Enum_OrderTrackingInfo.ORDER_PLACED
                   : order.status === Enum_OrderStatus.RESTAURANT_ACCEPTED
                   ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
+                  : order.status === Enum_OrderStatus.PREPARING
+                  ? Enum_OrderTrackingInfo.PREPARING
                   : order.status === Enum_OrderStatus.EN_ROUTE
                   ? Enum_OrderTrackingInfo.EN_ROUTE
                   : order.status === Enum_OrderStatus.READY_FOR_PICKUP
+                  ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
+                  : order.status === Enum_OrderStatus.RESTAURANT_PICKUP
                   ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
                   : order.status === Enum_OrderStatus.DELIVERED
                   ? Enum_OrderTrackingInfo.DELIVERED
@@ -507,13 +516,12 @@ export default function OrderScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, dispatch]);
+  }, [restaurantId, dispatch]);
 
   const fetchCompletedOrders = useCallback(async () => {
     try {
-      const restaurantId = id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927";
       const response = await axiosInstance.get<ApiResponse>(
-        `/restaurants/${restaurantId}/orders?limit=50`
+        `/restaurants/${restaurantId}/orders?limit=50&status=DELIVERED`
       );
 
       if (response.data.EC === 0) {
@@ -578,11 +586,7 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCompletedOrders(
-          formattedOrders.filter(
-            (item) => item.status === Enum_OrderStatus.DELIVERED
-          )
-        );
+        setCompletedOrders(formattedOrders);
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch completed orders");
@@ -591,11 +595,10 @@ export default function OrderScreen() {
       console.error("Fetch completed orders error:", error);
       Alert.alert("Error", "Failed to fetch completed orders");
     }
-  }, [id]);
+  }, [restaurantId]);
 
   const fetchCancelledOrders = useCallback(async () => {
     try {
-      const restaurantId = id ?? "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927";
       const response = await axiosInstance.get<ApiResponse>(
         `/restaurants/${restaurantId}/orders?limit=50&status=CANCELLED,REJECTED`
       );
@@ -619,10 +622,7 @@ export default function OrderScreen() {
               item.price_at_time_of_order.toString(),
           })),
           updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
-          tracking_info:
-            order.status === Enum_OrderStatus.CANCELLED
-              ? Enum_OrderTrackingInfo.CANCELLED
-              : Enum_OrderTrackingInfo.CANCELLED,
+          tracking_info: Enum_OrderTrackingInfo.CANCELLED,
           driver_id: order.driver_id || null,
           restaurant_id: order.restaurant_id,
           restaurant_avatar: {
@@ -666,13 +666,7 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCancelledOrders(
-          formattedOrders.filter(
-            (item) =>
-              item.status === Enum_OrderStatus.CANCELLED ||
-              item.status === Enum_OrderStatus.REJECTED
-          )
-        );
+        setCancelledOrders(formattedOrders);
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch cancelled orders");
@@ -681,10 +675,10 @@ export default function OrderScreen() {
       console.error("Fetch cancelled orders error:", error);
       Alert.alert("Error", "Failed to fetch cancelled orders");
     }
-  }, [id]);
+  }, [restaurantId]);
 
   useEffect(() => {
-    console.log("Loading orders, restaurant_id:", id);
+    console.log("Loading orders, restaurant_id:", restaurantId);
     const initializeOrders = async () => {
       await dispatch(loadOrderTrackingFromAsyncStorage()).unwrap();
       dispatch(cleanupInactiveOrders());
@@ -693,7 +687,28 @@ export default function OrderScreen() {
       await fetchCancelledOrders();
     };
     initializeOrders();
-  }, [id, dispatch, fetchOrders, fetchCompletedOrders, fetchCancelledOrders]);
+  }, [
+    restaurantId,
+    dispatch,
+    fetchOrders,
+    fetchCompletedOrders,
+    fetchCancelledOrders,
+  ]);
+
+  useEffect(() => {
+    if (latestOrder) {
+      console.log(
+        "Latest order received from socket:",
+        latestOrder.orderId,
+        latestOrder.status
+      );
+      if (["CANCELLED", "REJECTED"].includes(latestOrder.status)) {
+        fetchCancelledOrders();
+      } else if (latestOrder.status === Enum_OrderStatus.DELIVERED) {
+        fetchCompletedOrders();
+      }
+    }
+  }, [latestOrder, fetchCancelledOrders, fetchCompletedOrders]);
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
@@ -715,11 +730,15 @@ export default function OrderScreen() {
             tracking_info:
               newStatus === Enum_OrderStatus.PENDING
                 ? Enum_OrderTrackingInfo.ORDER_PLACED
+                : newStatus === Enum_OrderStatus.PREPARING
+                ? Enum_OrderTrackingInfo.PREPARING
                 : newStatus === Enum_OrderStatus.RESTAURANT_ACCEPTED
                 ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
                 : newStatus === Enum_OrderStatus.EN_ROUTE
                 ? Enum_OrderTrackingInfo.EN_ROUTE
                 : newStatus === Enum_OrderStatus.READY_FOR_PICKUP
+                ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
+                : newStatus === Enum_OrderStatus.RESTAURANT_PICKUP
                 ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
                 : newStatus === Enum_OrderStatus.DELIVERED
                 ? Enum_OrderTrackingInfo.DELIVERED
@@ -758,8 +777,6 @@ export default function OrderScreen() {
         return;
       }
 
-      console.log("Sending accept order request for orderId:", orderId);
-
       try {
         setLoading(true);
         const response = await axiosInstance.post(
@@ -774,14 +791,29 @@ export default function OrderScreen() {
             dispatch(
               updateAndSaveOrderTracking({
                 ...order,
-                status: Enum_OrderStatus.RESTAURANT_ACCEPTED,
+                status: Enum_OrderStatus.PREPARING,
                 updated_at: Date.now(),
-                tracking_info: Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED,
+                tracking_info: Enum_OrderTrackingInfo.PREPARING,
+                total_amount: parseFloat(response.data.data.total_amount) || 0,
+                order_items: response.data.data.order_items.map(
+                  (item: any) => ({
+                    item_id: item.item_id,
+                    variant_id: item.variant_id || "",
+                    name: item.menu_item?.name || item.name || "Unknown Item",
+                    quantity: item.quantity,
+                    price_at_time_of_order:
+                      item.price_at_time_of_order.toString(),
+                    price_after_applied_promotion:
+                      item.price_at_time_of_order.toString(),
+                    variant_name: item.menu_item_variant?.variant || "",
+                  })
+                ),
               })
             );
           }
+          setSelectedAcceptOrderId(null);
           showModal("Success", "Order accepted successfully");
-          await fetchOrders(); // Refresh orders to reflect the new status
+          await fetchOrders();
         } else {
           throw new Error(response.data.EM || "Failed to accept order");
         }
@@ -792,7 +824,7 @@ export default function OrderScreen() {
         setLoading(false);
       }
     },
-    [restaurant_id, orders, dispatch, showModal]
+    [restaurant_id, orders, dispatch, showModal, fetchOrders]
   );
 
   const handleSubmitReject = useCallback(async () => {
@@ -816,8 +848,6 @@ export default function OrderScreen() {
       description,
     };
 
-    console.log("Sending reject order request:", requestBody);
-
     try {
       setLoading(true);
       const response = await axiosInstance.post(
@@ -840,7 +870,15 @@ export default function OrderScreen() {
     } finally {
       setLoading(false);
     }
-  }, [restaurant_id, reason, title, description, selectedCancelledOrderId]);
+  }, [
+    restaurant_id,
+    reason,
+    title,
+    description,
+    selectedCancelledOrderId,
+    fetchCancelledOrders,
+    showModal,
+  ]);
 
   const renderCurrentOrder = ({
     item,
@@ -897,17 +935,13 @@ export default function OrderScreen() {
         Enum_OrderStatus.READY_FOR_PICKUP,
       ].includes(order.status)
     );
-    console.log("Current orders:", orders);
 
     return (
       <FlatList
         data={currentOrders}
         renderItem={renderCurrentOrder}
-        keyExtractor={(item: Type_PushNotification_Order) =>
-          `${item.orderId}_${refreshTrigger}`
-        }
+        keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
         contentContainerStyle={styles.list}
-        extraData={refreshTrigger}
         ListEmptyComponent={() => (
           <FFView style={styles.emptyContainer}>
             <FFText style={styles.emptyText}>No current orders</FFText>
@@ -922,11 +956,8 @@ export default function OrderScreen() {
       <FlatList
         data={completedOrders}
         renderItem={renderCompletedOrder}
-        keyExtractor={(item: Type_PushNotification_Order) =>
-          `${item.orderId}_completed_${refreshTrigger}`
-        }
+        keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
         contentContainerStyle={styles.list}
-        extraData={refreshTrigger}
         ListEmptyComponent={() => (
           <FFView style={styles.emptyContainer}>
             <FFText style={styles.emptyText}>No completed orders</FFText>
@@ -941,11 +972,8 @@ export default function OrderScreen() {
       <FlatList
         data={cancelledOrders}
         renderItem={renderCancelledOrder}
-        keyExtractor={(item: Type_PushNotification_Order) =>
-          `${item.orderId}_cancelled_${refreshTrigger}`
-        }
+        keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
         contentContainerStyle={styles.list}
-        extraData={refreshTrigger}
         ListEmptyComponent={() => (
           <FFView style={styles.emptyContainer}>
             <FFText style={styles.emptyText}>No cancelled orders</FFText>
@@ -971,9 +999,12 @@ export default function OrderScreen() {
     setIndex(newIndex);
     if (routes[newIndex].key === "completed") {
       await fetchCompletedOrders();
+    } else if (routes[newIndex].key === "cancelled") {
+      await fetchCancelledOrders();
     }
   };
 
+  if (loading) return <Spinner isVisible isOverlay />;
   return (
     <FFSafeAreaView style={styles.container}>
       <TabView
@@ -1025,28 +1056,19 @@ export default function OrderScreen() {
         <FFInputControl
           label="Reason"
           value={reason}
-          setValue={(value) => {
-            console.log("Updating reason:", value);
-            setReason(value);
-          }}
+          setValue={(value) => setReason(value)}
           placeholder="Enter reason for cancellation"
         />
         <FFInputControl
           label="Title"
           value={title}
-          setValue={(value) => {
-            console.log("Updating title:", value);
-            setTitle(value);
-          }}
+          setValue={(value) => setTitle(value)}
           placeholder="Enter cancellation title"
         />
         <FFInputControl
           label="Description"
           value={description}
-          setValue={(value) => {
-            console.log("Updating description:", value);
-            setDescription(value);
-          }}
+          setValue={(value) => setDescription(value)}
           placeholder="Enter detailed description"
         />
         <TouchableOpacity
@@ -1089,7 +1111,6 @@ const styles = StyleSheet.create<Styles>({
     paddingBottom: spacing.veryLarge,
   },
   orderCard: {
-    // backgroundColor: colors.background,
     borderRadius: borderRadius.card,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -1173,7 +1194,6 @@ const styles = StyleSheet.create<Styles>({
     ...shadows.xs,
   },
   tab: {
-    // width: "auto",
     paddingHorizontal: spacing.sm,
   },
   tabIndicator: {
