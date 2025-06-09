@@ -307,6 +307,13 @@ export const logout = createAsyncThunk(
       "@restaurant_order_tracking_v1", // Clear order tracking data
     ];
     await Promise.all(keys.map((key) => AsyncStorage.removeItem(key)));
+
+    // Store logout timestamp to filter out old orders
+    await AsyncStorage.setItem("@logout_timestamp", Date.now().toString());
+
+    // Set a flag to prevent fetching orders immediately after logout
+    await AsyncStorage.setItem("@just_logged_out", "true");
+
     dispatch(clearAuthState());
   }
 );
@@ -331,6 +338,39 @@ const authSlice = createSlice({
         return { ...state, ...action.payload };
       })
       .addCase(saveTokenToAsyncStorage.fulfilled, (state, action) => {
+        // Delay clearing logout flags to allow OrdersScreen to check them first
+        setTimeout(async () => {
+          console.log("🕐 Delayed clearing of logout flags...");
+
+          // Check if logout timestamp exists before clearing
+          const logoutTimestamp = await AsyncStorage.getItem(
+            "@logout_timestamp"
+          );
+          console.log("🔍 Logout timestamp before clearing:", logoutTimestamp);
+
+          // Only clear flags if enough time has passed (5 seconds)
+          if (logoutTimestamp) {
+            const logoutTime = parseInt(logoutTimestamp);
+            const now = Date.now();
+            const timeSinceLogout = now - logoutTime;
+            console.log(`⏰ Time since logout: ${timeSinceLogout}ms`);
+
+            if (timeSinceLogout > 5000) {
+              // 5 seconds
+              console.log("✅ Clearing logout flags - enough time passed");
+              await AsyncStorage.removeItem("@logout_timestamp");
+              await AsyncStorage.removeItem("@just_logged_out");
+            } else {
+              console.log("⏳ Keeping logout flags - not enough time passed");
+            }
+          }
+
+          // NUCLEAR OPTION: Clear order tracking AsyncStorage after login
+          console.log(
+            "🧨 NUCLEAR: Clearing order tracking AsyncStorage after login"
+          );
+          await AsyncStorage.removeItem("@restaurant_order_tracking_v1");
+        }, 2000); // 2 second delay
         return { ...state, ...action.payload };
       })
       .addCase(logout.fulfilled, () => initialState);

@@ -40,6 +40,7 @@ import { useTheme } from "@/src/hooks/useTheme";
 import FFInputControl from "@/src/components/FFInputControl";
 import Spinner from "@/src/components/FFSpinner";
 import { useSocket } from "@/src/hooks/useSocket";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   formatTimestampToDate,
   formatTimestampToDate2,
@@ -356,7 +357,6 @@ const OrderCard = ({
               )}
               {item.driverDetails && (
                 <FFView style={styles.driverInfoContainer}>
-                  <FFText style={styles.sectionLabel}>🚗 Driver</FFText>
                   <FFView style={styles.driverRow}>
                     <FFAvatar avatar={item?.driverDetails?.avatar?.url} />
                     <FFText style={styles.driverName}>
@@ -468,6 +468,17 @@ export default function OrderScreen() {
 
   const fetchOrders = useCallback(async () => {
     try {
+      // Check if we just logged out - if so, skip fetching orders
+      const justLoggedOut = await AsyncStorage.getItem("@just_logged_out");
+      if (justLoggedOut === "true") {
+        console.log("🚫 Skipping order fetch - just logged out");
+        // Clear the flag after checking it
+        await AsyncStorage.removeItem("@just_logged_out");
+        await AsyncStorage.removeItem("@logout_timestamp");
+        console.log("🧹 Cleared logout flags after checking");
+        return;
+      }
+
       const response = await axiosInstance.get<ApiResponse>(
         `/restaurants/${restaurantId}/orders?limit=50`
       );
@@ -476,18 +487,56 @@ export default function OrderScreen() {
         const apiOrders = response.data.data.orders;
         console.log("Fetched orders:", apiOrders.length);
 
+        // Check logout timestamp to filter out old orders
+        const logoutTimestamp = await AsyncStorage.getItem("@logout_timestamp");
+        const logoutTime = logoutTimestamp ? parseInt(logoutTimestamp) : 0;
+        console.log(
+          `🔍 LOGOUT FILTER DEBUG: logoutTimestamp="${logoutTimestamp}", logoutTime=${logoutTime}`
+        );
+
         // Only process current orders, not completed/cancelled/dispatched ones
-        const currentOrdersOnly = apiOrders.filter((order) =>
+        let currentOrdersOnly = apiOrders.filter((order) =>
           [
             Enum_OrderStatus.PENDING,
             Enum_OrderStatus.RESTAURANT_ACCEPTED,
             Enum_OrderStatus.PREPARING,
-            Enum_OrderStatus.DISPATCHED,
-            Enum_OrderStatus.RESTAURANT_PICKUP,
-            Enum_OrderStatus.EN_ROUTE,
             Enum_OrderStatus.READY_FOR_PICKUP,
           ].includes(order.status)
         );
+
+        // Filter out orders that were created before logout
+        if (logoutTime > 0) {
+          const beforeFilterCount = currentOrdersOnly.length;
+          currentOrdersOnly = currentOrdersOnly.filter((order) => {
+            // Try multiple timestamp fields with type assertion
+            const orderAny = order as any;
+            const orderTime = order.order_time
+              ? new Date(order.order_time).getTime()
+              : orderAny.created_at
+              ? typeof orderAny.created_at === "number"
+                ? orderAny.created_at * 1000
+                : new Date(orderAny.created_at).getTime()
+              : orderAny.updated_at
+              ? typeof orderAny.updated_at === "number"
+                ? orderAny.updated_at * 1000
+                : new Date(orderAny.updated_at).getTime()
+              : 0;
+
+            console.log(
+              `Order ${
+                order.id || orderAny.orderId
+              }: orderTime=${orderTime}, logoutTime=${logoutTime}, keep=${
+                orderTime > logoutTime
+              }`
+            );
+            return orderTime > logoutTime;
+          });
+          console.log(
+            `Filtered out ${
+              beforeFilterCount - currentOrdersOnly.length
+            } orders from before logout`
+          );
+        }
 
         console.log(
           `Filtered current orders: ${currentOrdersOnly.length} out of ${apiOrders.length}`
@@ -775,6 +824,17 @@ export default function OrderScreen() {
   useEffect(() => {
     console.log("Loading orders, restaurant_id:", restaurantId);
     const initializeOrders = async () => {
+      // Check if we just logged out - if so, skip fetching orders
+      const justLoggedOut = await AsyncStorage.getItem("@just_logged_out");
+      if (justLoggedOut === "true") {
+        console.log("🚫 Skipping order initialization - just logged out");
+        // Clear the flag after checking it
+        await AsyncStorage.removeItem("@just_logged_out");
+        await AsyncStorage.removeItem("@logout_timestamp");
+        console.log("🧹 Cleared logout flags after checking");
+        return;
+      }
+
       await dispatch(loadOrderTrackingFromAsyncStorage()).unwrap();
       dispatch(cleanupInactiveOrders());
       await fetchOrders();
@@ -1026,6 +1086,9 @@ export default function OrderScreen() {
         Enum_OrderStatus.RESTAURANT_ACCEPTED,
         Enum_OrderStatus.PREPARING,
         Enum_OrderStatus.READY_FOR_PICKUP,
+        Enum_OrderStatus.DISPATCHED,
+        Enum_OrderStatus.RESTAURANT_PICKUP,
+        Enum_OrderStatus.EN_ROUTE,
       ].includes(order.status)
     );
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useDispatch, useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import { BACKEND_URL } from "@/src/utils/constants";
@@ -12,6 +13,10 @@ import {
   updateAndSaveOrderTracking,
   removeOrderTracking,
 } from "@/src/store/restaurantOrderTrackingSlice";
+
+// Global socket instance to prevent multiple connections
+let globalSocket: Socket | null = null;
+let globalSocketConnecting = false;
 
 export const useSocket = (
   restaurantId: string,
@@ -26,19 +31,31 @@ export const useSocket = (
   const [socket, setSocket] = useState<Socket | null>(null);
   const [latestOrder, setLatestOrder] =
     useState<Type_PushNotification_Order | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
   const { accessToken } = useSelector((state: RootState) => state.auth);
   const existingOrders = useSelector(
     (state: RootState) => state.restaurantOrderTracking.orders
   );
   const dispatch = useDispatch();
+
+  // Restore all the missing refs
+  const [isConnected, setIsConnected] = useState(false);
   const eventQueueRef = useRef<{ event: string; data: any; id: string }[]>([]);
   const processedEventIds = useRef<Map<string, number>>(new Map());
   const isProcessingRef = useRef(false);
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const isReconnectingRef = useRef(false);
+  const isConnectingRef = useRef(false);
   const maxReconnectAttempts = 10;
+
+  // Ref to store latest orders for socket handlers
+  const latestOrdersRef = useRef(existingOrders);
+
+  // Update ref whenever existingOrders changes
+  useEffect(() => {
+    latestOrdersRef.current = existingOrders;
+  }, [existingOrders]);
 
   const areOrdersEqual = useCallback(
     (
@@ -76,13 +93,21 @@ export const useSocket = (
   };
 
   const attemptReconnection = useCallback(() => {
+    // Prevent multiple simultaneous reconnection attempts
+    if (isReconnectingRef.current) {
+      console.log("Reconnection already in progress, skipping...");
+      return;
+    }
+
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
       console.error("Max reconnection attempts reached");
       setSocket(null);
       setIsConnected(false);
+      isReconnectingRef.current = false;
       return;
     }
 
+    isReconnectingRef.current = true;
     reconnectAttemptsRef.current += 1;
     const delay = Math.min(
       1000 * Math.pow(2, reconnectAttemptsRef.current - 1),
@@ -100,18 +125,23 @@ export const useSocket = (
     reconnectTimeoutRef.current = setTimeout(() => {
       if (!accessToken) {
         console.log("No access token for reconnection");
+        isReconnectingRef.current = false;
         return;
       }
 
       console.log("Creating new socket connection...");
-      createSocketConnection();
+      const newSocket = createSocketConnection();
+      if (newSocket) {
+        setupSocketEvents(newSocket);
+      }
+      isReconnectingRef.current = false;
     }, delay);
-  }, [accessToken]);
+  }, []);
 
   const createSocketConnection = useCallback(() => {
     if (!accessToken) {
       console.log("No access token available for socket connection");
-      return;
+      return null;
     }
 
     console.log("Creating socket connection...");
@@ -417,116 +447,241 @@ export const useSocket = (
     buildPushNotificationOrder,
   ]);
 
+  const setupSocketEvents = useCallback(
+    (socketInstance: Socket) => {
+      socketInstance.on("connect", () => {
+        console.log(
+          "Connected to restaurant order tracking server, ID:",
+          socketInstance.id
+        );
+        setSocket(socketInstance);
+        setIsConnected(true);
+        reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
+        isReconnectingRef.current = false; // Reset reconnection flag
+        isConnectingRef.current = false; // Reset connecting flag
+        eventQueueRef.current = [];
+        processedEventIds.current.clear();
+        processEventQueue();
+      });
+
+      socketInstance.on("incomingOrderForRestaurant", (response) => {
+        console.log(
+          "Received incomingOrderForRestaurant at:",
+          new Date().toISOString()
+        );
+        console.log(
+          "Response data incomingOrder:",
+          JSON.stringify(response, null, 2)
+        );
+        const eventId = `${response.orderId ?? response.id ?? "unknown"}_${
+          response.updated_at ?? Date.now()
+        }`;
+        eventQueueRef.current.push({
+          event: "incomingOrderForRestaurant",
+          data: response,
+          id: eventId,
+        });
+        console.log("Pushed to queue, length:", eventQueueRef.current.length);
+        resetResponseTimeout();
+        processEventQueue();
+      });
+
+      // Removed old notifyOrderStatus handler - using simple handler below
+
+      socketInstance.on("disconnect", (reason) => {
+        console.log(
+          "Disconnected from restaurant order tracking server:",
+          reason
+        );
+        setIsConnected(false);
+        setSocket(null);
+
+        // Attempt manual reconnection for unexpected disconnections
+        if (
+          reason === "io server disconnect" ||
+          reason === "io client disconnect" ||
+          reason === "transport close" ||
+          reason === "transport error"
+        ) {
+          console.log(
+            "Unexpected disconnect, attempting manual reconnection..."
+          );
+          attemptReconnection();
+        }
+      });
+
+      socketInstance.on("connect_error", (error) => {
+        console.error("Restaurant socket connection error:", error);
+        setIsConnected(false);
+        setSocket(null);
+        isConnectingRef.current = false; // Reset connecting flag on error
+        attemptReconnection();
+      });
+    },
+    [processEventQueue]
+  );
+
   useEffect(() => {
     if (!accessToken) {
       console.log("No access token available");
       return;
     }
 
-    // Reset reconnection attempts when creating new connection
-    reconnectAttemptsRef.current = 0;
+    // Use global socket to prevent multiple connections
+    if (globalSocket && globalSocket.connected) {
+      console.log("Using existing socket connection:", globalSocket.id);
+      setSocket(globalSocket);
+      setIsConnected(true);
+      return;
+    }
 
-    const socketInstance = createSocketConnection();
-    if (!socketInstance) return;
+    if (globalSocketConnecting) {
+      console.log("Socket connection already in progress, waiting...");
+      return;
+    }
+
+    globalSocketConnecting = true;
+    console.log("Creating simple socket connection...");
+
+    const socketInstance = io(`${BACKEND_URL}/restaurant`, {
+      transports: ["websocket", "polling"],
+      extraHeaders: {
+        auth: `Bearer ${accessToken}`,
+      },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      autoConnect: true,
+      withCredentials: true,
+      timeout: 10000,
+    });
+
+    globalSocket = socketInstance;
 
     socketInstance.on("connect", () => {
-      console.log(
-        "Connected to restaurant order tracking server, ID:",
-        socketInstance.id
-      );
+      console.log("✅ Connected to restaurant server, ID:", socketInstance.id);
+      globalSocketConnecting = false;
       setSocket(socketInstance);
       setIsConnected(true);
-      reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
-      eventQueueRef.current = [];
-      processedEventIds.current.clear();
-      processEventQueue();
-    });
-
-    socketInstance.on("incomingOrderForRestaurant", (response) => {
-      console.log(
-        "Received incomingOrderForRestaurant at:",
-        new Date().toISOString()
-      );
-      console.log(
-        "Response data incomingOrder:",
-        JSON.stringify(response, null, 2)
-      );
-      const eventId = `${response.orderId ?? response.id ?? "unknown"}_${
-        response.updated_at ?? Date.now()
-      }`;
-      eventQueueRef.current.push({
-        event: "incomingOrderForRestaurant",
-        data: response,
-        id: eventId,
-      });
-      console.log("Pushed to queue, length:", eventQueueRef.current.length);
-      resetResponseTimeout();
-      processEventQueue();
-    });
-
-    socketInstance.on("notifyOrderStatus", (response) => {
-      console.log(
-        "Received notifyOrderStatus:",
-        JSON.stringify(response, null, 2)
-      );
-      const eventId = `${response.orderId}_${response.updated_at}`;
-      eventQueueRef.current.push({
-        event: "notifyOrderStatus",
-        data: response,
-        id: eventId,
-      });
-      console.log("Pushed to queue, length:", eventQueueRef.current.length);
-      resetResponseTimeout();
-      processEventQueue();
     });
 
     socketInstance.on("disconnect", (reason) => {
-      console.log(
-        "Disconnected from restaurant order tracking server:",
-        reason
-      );
-      setIsConnected(false);
+      console.log("❌ Disconnected:", reason);
+      globalSocket = null;
+      globalSocketConnecting = false;
       setSocket(null);
-
-      // Attempt manual reconnection for unexpected disconnections
-      if (
-        reason === "io server disconnect" ||
-        reason === "io client disconnect" ||
-        reason === "transport close" ||
-        reason === "transport error"
-      ) {
-        console.log("Unexpected disconnect, attempting manual reconnection...");
-        attemptReconnection();
-      }
+      setIsConnected(false);
     });
 
     socketInstance.on("connect_error", (error) => {
-      console.error("Restaurant socket connection error:", error);
-      setIsConnected(false);
-      setSocket(null);
-      attemptReconnection();
+      console.error("❌ Connection error:", error);
+    });
+
+    // Simple event handlers without complex queue logic
+    socketInstance.on("incomingOrderForRestaurant", async (response) => {
+      console.log("📥 New order received:", response.orderId || response.id);
+
+      // Check if we just logged out - if so, ignore socket events
+      const justLoggedOut = await AsyncStorage.getItem("@just_logged_out");
+      if (justLoggedOut === "true") {
+        console.log("🚫 Ignoring socket order - just logged out");
+        return;
+      }
+
+      const order = buildPushNotificationOrder(response);
+      dispatch(updateAndSaveOrderTracking(order));
+      setLatestOrder(order);
+
+      if (setOrders) {
+        setOrders((prev) => {
+          const exists = prev.some((o) => o.orderId === order.orderId);
+          if (exists) {
+            return prev.map((o) => (o.orderId === order.orderId ? order : o));
+          }
+          return [...prev, order];
+        });
+      }
+
+      if (sendPushNotification) {
+        sendPushNotification(order);
+      }
+    });
+
+    socketInstance.on("notifyOrderStatus", async (response) => {
+      console.log(
+        "📝 Order status update:",
+        response.orderId,
+        "->",
+        response.status
+      );
+
+      // Check if we just logged out - if so, ignore socket events
+      const justLoggedOut = await AsyncStorage.getItem("@just_logged_out");
+      if (justLoggedOut === "true") {
+        console.log("🚫 Ignoring socket status update - just logged out");
+        return;
+      }
+
+      // Use ref to get latest orders (not stale closure)
+      const currentOrders = latestOrdersRef.current;
+
+      // Find existing order and preserve its data
+      console.log("🔍 Looking for order:", response.orderId ?? response.id);
+      console.log(
+        "🔍 Available orders:",
+        currentOrders.map((o) => o.orderId)
+      );
+      const existingOrder = currentOrders.find(
+        (o) => o.orderId === (response.orderId ?? response.id)
+      );
+      console.log("🔍 Found existing order:", !!existingOrder);
+
+      if (existingOrder) {
+        console.log(
+          "✅ Updating existing order status:",
+          existingOrder.status,
+          "->",
+          response.status
+        );
+        const updatedOrder = {
+          ...existingOrder,
+          status: response.status ?? existingOrder.status,
+          tracking_info: response.tracking_info ?? existingOrder.tracking_info,
+          updated_at: response.updated_at ?? Date.now(),
+          ...(response.driverDetails && {
+            driverDetails: response.driverDetails,
+          }),
+          ...(response.driver_id && { driver_id: response.driver_id }),
+        };
+
+        dispatch(updateAndSaveOrderTracking(updatedOrder));
+        setLatestOrder(updatedOrder);
+
+        if (setOrders) {
+          setOrders((prev) =>
+            prev.map((o) =>
+              o.orderId === updatedOrder.orderId ? updatedOrder : o
+            )
+          );
+        }
+
+        if (sendPushNotification) {
+          sendPushNotification(updatedOrder);
+        }
+      } else {
+        console.log(
+          "❌ Order not found in existingOrders, cannot update status"
+        );
+      }
     });
 
     return () => {
-      if (socketInstance) {
-        socketInstance.disconnect();
-      }
-      if (responseTimeoutRef.current) {
-        clearTimeout(responseTimeoutRef.current);
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      console.log("🔌 Disconnecting socket...");
+      // Don't disconnect global socket unless it's the last instance
       setSocket(null);
       setIsConnected(false);
     };
-  }, [
-    accessToken,
-    restaurantId,
-    processEventQueue,
-    createSocketConnection,
-    attemptReconnection,
-  ]);
+  }, [accessToken, restaurantId]);
 
   return {
     socket,

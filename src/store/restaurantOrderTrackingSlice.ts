@@ -107,6 +107,7 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
       [
         Enum_OrderStatus.PENDING,
         Enum_OrderStatus.RESTAURANT_ACCEPTED,
+        Enum_OrderStatus.PREPARING,
         Enum_OrderStatus.EN_ROUTE,
         Enum_OrderStatus.READY_FOR_PICKUP,
         Enum_OrderStatus.RESTAURANT_PICKUP,
@@ -139,6 +140,7 @@ export const loadOrderTrackingFromAsyncStorage = createAsyncThunk(
           [
             Enum_OrderStatus.PENDING,
             Enum_OrderStatus.RESTAURANT_ACCEPTED,
+            Enum_OrderStatus.PREPARING,
             Enum_OrderStatus.EN_ROUTE,
             Enum_OrderStatus.READY_FOR_PICKUP,
             Enum_OrderStatus.RESTAURANT_PICKUP,

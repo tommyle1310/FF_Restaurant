@@ -17,6 +17,7 @@ import useSettingData from "@/src/data/screens/Settings";
 import FFView from "@/src/components/FFView";
 import { spacing } from "@/src/theme";
 import { clearOrderTrackingAsync } from "@/src/store/restaurantOrderTrackingSlice";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type LogoutSreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -95,14 +96,55 @@ const SettingsScreen = () => {
                 <FFButton
                   onPress={async () => {
                     try {
+                      console.log("Starting logout process...");
+
+                      // First, let's see what keys exist in AsyncStorage
+                      const allKeys = await AsyncStorage.getAllKeys();
+                      console.log(
+                        "All AsyncStorage keys before logout:",
+                        allKeys
+                      );
+
                       // Clear order tracking first
-                      await dispatch(clearOrderTrackingAsync());
+                      console.log("Clearing order tracking...");
+                      await dispatch(clearOrderTrackingAsync()).unwrap();
+
+                      // Force clear Redux state immediately
+                      console.log("Force clearing Redux state...");
+                      dispatch({
+                        type: "restaurantOrderTracking/clearOrderTracking",
+                      });
+
                       // Then logout (which clears auth and other AsyncStorage)
-                      await dispatch(logout());
+                      console.log("Clearing auth data...");
+                      await dispatch(logout()).unwrap();
+
+                      // Double-check by clearing all keys manually
+                      console.log("Manually clearing all AsyncStorage keys...");
+                      await AsyncStorage.clear();
+
+                      // Re-set logout timestamp AFTER clearing AsyncStorage with current time
+                      const logoutTime = Date.now();
+                      console.log(
+                        "Re-setting logout timestamp after clear:",
+                        logoutTime
+                      );
+                      await AsyncStorage.setItem(
+                        "@logout_timestamp",
+                        logoutTime.toString()
+                      );
+                      await AsyncStorage.setItem("@just_logged_out", "true");
+
+                      // Final Redux state clear
+                      console.log("Final Redux state clear...");
+                      dispatch({ type: "RESET_ALL_STATE" });
+
+                      console.log("Logout completed successfully");
                       // Navigate to login
                       navigation.navigate("Login");
                     } catch (error) {
                       console.error("Logout error:", error);
+                      // Still navigate to login even if there's an error
                       navigation.navigate("Login");
                     }
                   }}
