@@ -260,13 +260,6 @@ const MainStackScreen = () => {
     description,
   ]);
 
-  console.log(
-    "check late",
-    latestOrder?.total_amount,
-    "order item",
-    latestOrder?.order_items
-  );
-
   if (isLoading) return <Spinner isVisible isOverlay />;
 
   return (

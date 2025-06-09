@@ -57,8 +57,7 @@ const useSearchNearbyDrivers = ({
     numDrivers: number
   ): Driver[] => {
     const drivers: Driver[] = [];
-    const listDriverIdSample = [HARDED_CODE_TEST.prioritised_drivers[0]]
-    console.log('check list driver ', listDriverIdSample)
+    const listDriverIdSample = [HARDED_CODE_TEST.prioritised_drivers[0]];
     // Make sure we don't try to generate more drivers than we have IDs for
     const count = Math.min(numDrivers, listDriverIdSample.length);
 

@@ -56,12 +56,43 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
     let updatedOrders: OrderTracking[];
     if (existingIndex !== -1) {
       updatedOrders = [...currentOrders];
+      const existingOrder = currentOrders[existingIndex];
+
+      console.log("=== REDUX UPDATE DEBUG ===");
+      console.log("BEFORE update - existing order:");
+      console.log("- Order items count:", existingOrder.order_items.length);
+      console.log("- Total amount:", existingOrder.total_amount);
+      console.log("- Customer note:", existingOrder.customer_note);
+
+      console.log("NEW order data being saved:");
+      console.log("- Order items count:", order.order_items.length);
+      console.log("- Total amount:", order.total_amount);
+      console.log("- Customer note:", order.customer_note);
+
+      // CRITICAL: If new order has empty order_items but existing has items, preserve existing
+      if (
+        order.order_items.length === 0 &&
+        existingOrder.order_items.length > 0
+      ) {
+        console.log(
+          "PRESERVING existing order_items - new order has empty items!"
+        );
+        order = {
+          ...order,
+          order_items: existingOrder.order_items,
+          total_amount: existingOrder.total_amount || order.total_amount,
+          customer_note: existingOrder.customer_note || order.customer_note,
+        };
+      }
+
       updatedOrders[existingIndex] = order;
       console.log("Updated existing restaurant order:", {
         orderId: order.orderId,
-        oldStatus: currentOrders[existingIndex].status,
+        oldStatus: existingOrder.status,
         newStatus: order.status,
+        finalOrderItemsCount: order.order_items.length,
       });
+      console.log("=== END REDUX UPDATE DEBUG ===");
     } else {
       updatedOrders = [...currentOrders, order];
       console.log("Added new restaurant order:", {
@@ -78,6 +109,7 @@ export const updateAndSaveOrderTracking = createAsyncThunk(
         Enum_OrderStatus.RESTAURANT_ACCEPTED,
         Enum_OrderStatus.EN_ROUTE,
         Enum_OrderStatus.READY_FOR_PICKUP,
+        Enum_OrderStatus.RESTAURANT_PICKUP,
       ].includes(o.status)
     );
 
@@ -109,6 +141,7 @@ export const loadOrderTrackingFromAsyncStorage = createAsyncThunk(
             Enum_OrderStatus.RESTAURANT_ACCEPTED,
             Enum_OrderStatus.EN_ROUTE,
             Enum_OrderStatus.READY_FOR_PICKUP,
+            Enum_OrderStatus.RESTAURANT_PICKUP,
           ].includes(order.status)
         )
         .sort(
@@ -143,7 +176,7 @@ const restaurantOrderTrackingSlice = createSlice({
     clearOrderTracking: (state) => {
       console.log("Clearing all restaurant orders");
       state.orders = [];
-      AsyncStorage.removeItem(STORAGE_KEY);
+      // AsyncStorage removal is handled in the async thunk
     },
     cleanupInactiveOrders: (state) => {
       console.log("Cleaning up inactive orders");
@@ -151,7 +184,7 @@ const restaurantOrderTrackingSlice = createSlice({
         [
           Enum_OrderStatus.PENDING,
           Enum_OrderStatus.RESTAURANT_ACCEPTED,
-          Enum_OrderStatus.EN_ROUTE,
+          Enum_OrderStatus.PREPARING,
           Enum_OrderStatus.READY_FOR_PICKUP,
         ].includes(order.status)
       );
@@ -172,6 +205,22 @@ const restaurantOrderTrackingSlice = createSlice({
       });
   },
 });
+
+// Async thunk for clearing order tracking
+export const clearOrderTrackingAsync = createAsyncThunk(
+  "restaurantOrderTracking/clearAsync",
+  async (_, { dispatch }) => {
+    try {
+      console.log("Clearing restaurant order tracking AsyncStorage...");
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      dispatch(clearOrderTracking());
+      console.log("Successfully cleared restaurant order tracking");
+    } catch (error) {
+      console.error("Error clearing restaurant order tracking:", error);
+      throw error;
+    }
+  }
+);
 
 export const {
   removeOrderTracking,

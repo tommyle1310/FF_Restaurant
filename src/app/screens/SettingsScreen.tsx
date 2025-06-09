@@ -16,7 +16,7 @@ import { RootState } from "@/src/store/store";
 import useSettingData from "@/src/data/screens/Settings";
 import FFView from "@/src/components/FFView";
 import { spacing } from "@/src/theme";
-import { clearOrderTracking } from "@/src/store/restaurantOrderTrackingSlice";
+import { clearOrderTrackingAsync } from "@/src/store/restaurantOrderTrackingSlice";
 
 type LogoutSreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -26,9 +26,7 @@ type LogoutSreenNavigationProp = StackNavigationProp<
 const SettingsScreen = () => {
   const navigation = useNavigation<LogoutSreenNavigationProp>();
   const dispatch = useDispatch();
-  const {  avatar, email } = useSelector(
-    (state: RootState) => state.auth
-  );
+  const { avatar, email } = useSelector((state: RootState) => state.auth);
   const { "Account Settings": data_account_setting, More: data_more } =
     useSettingData();
 
@@ -95,11 +93,18 @@ const SettingsScreen = () => {
                 ))}
                 {/* Log Out Button */}
                 <FFButton
-                  onPress={() => {
-                    dispatch(logout());
-                    dispatch(clearOrderTracking())
-                    // dispatch(clear()); // Xóa AsyncStorage
-                    navigation.navigate("Login");
+                  onPress={async () => {
+                    try {
+                      // Clear order tracking first
+                      await dispatch(clearOrderTrackingAsync());
+                      // Then logout (which clears auth and other AsyncStorage)
+                      await dispatch(logout());
+                      // Navigate to login
+                      navigation.navigate("Login");
+                    } catch (error) {
+                      console.error("Logout error:", error);
+                      navigation.navigate("Login");
+                    }
                   }}
                   className="w-full"
                   variant="danger"

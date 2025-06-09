@@ -102,11 +102,6 @@ const HomeScreen = () => {
         `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
       );
 
-      console.log(
-        "check respon",
-        `/restaurant-stats/${restaurant_id}?start_date=${startDateStr}&end_date=${endDateStr}&force_refresh=true`
-      );
-
       if (response.data.EC === 0) {
         const statsData = response.data.data;
 

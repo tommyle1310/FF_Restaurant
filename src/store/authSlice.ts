@@ -304,6 +304,7 @@ export const logout = createAsyncThunk(
       "exp",
       "fWallet_id",
       "fWallet_balance",
+      "@restaurant_order_tracking_v1", // Clear order tracking data
     ];
     await Promise.all(keys.map((key) => AsyncStorage.removeItem(key)));
     dispatch(clearAuthState());
@@ -336,5 +337,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAuthState, clearAuthState, toggleAvailability } = authSlice.actions;
+export const { setAuthState, clearAuthState, toggleAvailability } =
+  authSlice.actions;
 export default authSlice.reducer;

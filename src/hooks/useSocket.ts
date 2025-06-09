@@ -26,12 +26,19 @@ export const useSocket = (
   const [socket, setSocket] = useState<Socket | null>(null);
   const [latestOrder, setLatestOrder] =
     useState<Type_PushNotification_Order | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const { accessToken } = useSelector((state: RootState) => state.auth);
+  const existingOrders = useSelector(
+    (state: RootState) => state.restaurantOrderTracking.orders
+  );
   const dispatch = useDispatch();
   const eventQueueRef = useRef<{ event: string; data: any; id: string }[]>([]);
   const processedEventIds = useRef<Map<string, number>>(new Map());
   const isProcessingRef = useRef(false);
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 10;
 
   const areOrdersEqual = useCallback(
     (
@@ -68,6 +75,61 @@ export const useSocket = (
     }, 5000);
   };
 
+  const attemptReconnection = useCallback(() => {
+    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+      console.error("Max reconnection attempts reached");
+      setSocket(null);
+      setIsConnected(false);
+      return;
+    }
+
+    reconnectAttemptsRef.current += 1;
+    const delay = Math.min(
+      1000 * Math.pow(2, reconnectAttemptsRef.current - 1),
+      10000
+    );
+
+    console.log(
+      `Attempting manual reconnection ${reconnectAttemptsRef.current}/${maxReconnectAttempts} in ${delay}ms`
+    );
+
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (!accessToken) {
+        console.log("No access token for reconnection");
+        return;
+      }
+
+      console.log("Creating new socket connection...");
+      createSocketConnection();
+    }, delay);
+  }, [accessToken]);
+
+  const createSocketConnection = useCallback(() => {
+    if (!accessToken) {
+      console.log("No access token available for socket connection");
+      return;
+    }
+
+    console.log("Creating socket connection...");
+    const socketInstance = io(`${BACKEND_URL}/restaurant`, {
+      transports: ["websocket", "polling"],
+      extraHeaders: {
+        auth: `Bearer ${accessToken}`,
+      },
+      reconnection: false, // Disable automatic reconnection, we'll handle it manually
+      autoConnect: true,
+      withCredentials: true,
+      timeout: 20000,
+      forceNew: true, // Force new connection
+    });
+
+    return socketInstance;
+  }, [accessToken]);
+
   const buildPushNotificationOrder = useCallback(
     (response: any): Type_PushNotification_Order => {
       if (!response || typeof response !== "object") {
@@ -89,6 +151,7 @@ export const useSocket = (
         customer_id: response.customer_id ?? "",
         total_amount: isNaN(totalAmount) ? 0 : totalAmount,
         status: response.status ?? Enum_OrderStatus.PENDING,
+        customer_note: response.customer_note ?? "",
         order_items: orderItems.map((item: any, index: number) => {
           if (!item || typeof item !== "object") {
             throw new Error(`Invalid order item at index ${index}`);
@@ -151,6 +214,7 @@ export const useSocket = (
           location: { lat: 0, lng: 0 },
           title: "",
         },
+        driverDetails: response.driverDetails ?? null,
       };
 
       console.log(`Constructed order:`, JSON.stringify(order, null, 2));
@@ -172,12 +236,29 @@ export const useSocket = (
     const eventKey = `${data.orderId ?? data.id ?? "unknown"}`;
     const lastUpdatedAt = processedEventIds.current.get(eventKey);
 
-    if (
-      lastUpdatedAt &&
-      lastUpdatedAt >= (data.updated_at ?? Date.now()) &&
-      areOrdersEqual(buildPushNotificationOrder(data), latestOrder)
-    ) {
-      console.log(`Skipping duplicate event (${event}):`, id);
+    // Enhanced duplicate prevention for specific cases
+    if (lastUpdatedAt && lastUpdatedAt >= (data.updated_at ?? Date.now())) {
+      // Special case: prevent duplicate incomingOrderForRestaurant and notifyOrderStatus
+      // when they have same orderId and status === PENDING
+      if (
+        (event === "incomingOrderForRestaurant" ||
+          event === "notifyOrderStatus") &&
+        data.status === "PENDING"
+      ) {
+        console.log(
+          `Skipping duplicate ${event} with PENDING status for order:`,
+          eventKey
+        );
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
+      // General duplicate check for same timestamp
+      console.log(
+        `Skipping duplicate event (${event}) - same or older timestamp:`,
+        id
+      );
       isProcessingRef.current = false;
       processEventQueue();
       return;
@@ -186,7 +267,89 @@ export const useSocket = (
     processedEventIds.current.set(eventKey, data.updated_at ?? Date.now());
 
     try {
-      const order = buildPushNotificationOrder(data);
+      let order;
+
+      if (event === "notifyOrderStatus") {
+        console.log("=== NOTIFY ORDER STATUS DEBUG ===");
+        console.log("Existing orders in Redux:", existingOrders.length);
+        console.log("Looking for orderId:", data.orderId ?? data.id);
+
+        // For status updates, find existing order from Redux and preserve all data
+        const existingOrder = existingOrders.find(
+          (o) => o.orderId === (data.orderId ?? data.id)
+        );
+
+        if (existingOrder) {
+          console.log("FOUND existing order in Redux:");
+          console.log("- Order ID:", existingOrder.orderId);
+          console.log("- Order items count:", existingOrder.order_items.length);
+          console.log("- Total amount:", existingOrder.total_amount);
+          console.log("- Current status:", existingOrder.status);
+          console.log("- New status:", data.status);
+
+          // Preserve ALL existing data, only update specific fields from notifyOrderStatus
+          order = {
+            ...existingOrder, // Keep ALL existing data
+            status: data.status ?? existingOrder.status,
+            tracking_info: data.tracking_info ?? existingOrder.tracking_info,
+            updated_at: data.updated_at ?? Date.now(),
+            // Preserve or merge driverDetails if provided
+            ...(data.driverDetails && {
+              driverDetails: {
+                ...existingOrder.driverDetails, // Keep existing driver data
+                ...data.driverDetails, // Merge new driver data
+              },
+            }),
+            // Update driver_id if provided
+            ...(data.driver_id && { driver_id: data.driver_id }),
+          };
+
+          console.log("PRESERVED order data:");
+          console.log("- Order items count:", order.order_items.length);
+          console.log("- Total amount:", order.total_amount);
+          console.log("- Customer note:", order.customer_note);
+          console.log(
+            "- Driver details:",
+            order.driverDetails ? "Present" : "None"
+          );
+        } else {
+          console.log("ERROR: No existing order found in Redux!");
+          console.log(
+            "Available order IDs in Redux:",
+            existingOrders.map((o) => o.orderId)
+          );
+          // Fallback if no existing order found - build minimal order with only status data
+          order = {
+            orderId: data.orderId ?? data.id ?? "",
+            customer_id: data.customer_id ?? "",
+            total_amount: 0,
+            status: data.status ?? Enum_OrderStatus.PENDING,
+            customer_note: "",
+            order_items: [],
+            updated_at: data.updated_at ?? Date.now(),
+            tracking_info:
+              data.tracking_info ??
+              data.status ??
+              Enum_OrderTrackingInfo.ORDER_PLACED,
+            driver_id: data.driver_id ?? null,
+            restaurant_id: data.restaurant_id ?? "",
+            restaurant_avatar: data.restaurant_avatar ?? { key: "", url: "" },
+            driver_avatar: data.driver_avatar ?? null,
+            restaurantAddress: data.restaurantAddress ?? null,
+            customerAddress: data.customerAddress ?? null,
+            driverDetails: data.driverDetails ?? null,
+          };
+          console.log("Built minimal order as fallback");
+        }
+        console.log("=== END NOTIFY ORDER STATUS DEBUG ===");
+      } else {
+        // For new orders (incomingOrderForRestaurant), build complete order
+        console.log("=== INCOMING ORDER DEBUG ===");
+        order = buildPushNotificationOrder(data);
+        console.log("Built new order for incoming order");
+        console.log("New order items count:", order.order_items.length);
+        console.log("=== END INCOMING ORDER DEBUG ===");
+      }
 
       if (!order.orderId) {
         throw new Error("Missing orderId in constructed data");
@@ -260,18 +423,11 @@ export const useSocket = (
       return;
     }
 
-    const socketInstance = io(`${BACKEND_URL}/restaurant`, {
-      transports: ["websocket"],
-      extraHeaders: {
-        auth: `Bearer ${accessToken}`,
-      },
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      autoConnect: true,
-      withCredentials: true,
-    });
+    // Reset reconnection attempts when creating new connection
+    reconnectAttemptsRef.current = 0;
+
+    const socketInstance = createSocketConnection();
+    if (!socketInstance) return;
 
     socketInstance.on("connect", () => {
       console.log(
@@ -279,6 +435,8 @@ export const useSocket = (
         socketInstance.id
       );
       setSocket(socketInstance);
+      setIsConnected(true);
+      reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
       eventQueueRef.current = [];
       processedEventIds.current.clear();
       processEventQueue();
@@ -327,23 +485,48 @@ export const useSocket = (
         "Disconnected from restaurant order tracking server:",
         reason
       );
+      setIsConnected(false);
       setSocket(null);
+
+      // Attempt manual reconnection for unexpected disconnections
+      if (
+        reason === "io server disconnect" ||
+        reason === "io client disconnect" ||
+        reason === "transport close" ||
+        reason === "transport error"
+      ) {
+        console.log("Unexpected disconnect, attempting manual reconnection...");
+        attemptReconnection();
+      }
     });
 
     socketInstance.on("connect_error", (error) => {
       console.error("Restaurant socket connection error:", error);
+      setIsConnected(false);
       setSocket(null);
+      attemptReconnection();
     });
 
     return () => {
-      if (socketInstance) socketInstance.disconnect();
+      if (socketInstance) {
+        socketInstance.disconnect();
+      }
       if (responseTimeoutRef.current) {
         clearTimeout(responseTimeoutRef.current);
       }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      setSocket(null);
+      setIsConnected(false);
     };
-  }, [accessToken, restaurantId, processEventQueue]);
-
-  console.log("Latest order state:", JSON.stringify(latestOrder, null, 2));
+  }, [
+    accessToken,
+    restaurantId,
+    processEventQueue,
+    createSocketConnection,
+    attemptReconnection,
+  ]);
 
   return {
     socket,

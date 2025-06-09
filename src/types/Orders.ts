@@ -57,6 +57,7 @@ export type Type_PushNotification_Order = {
   updated_at: number;
   customer_id: string;
   total_amount: number;
+  customer_note?: string;
   order_items: {
     item_id: string;
     variant_id: string;
@@ -76,6 +77,20 @@ export type Type_PushNotification_Order = {
     key: string;
     url: string;
   } | null;
+  driverDetails?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    avatar: any;
+    rating: {
+      average_rating: string;
+    };
+    vehicle: {
+      color: string;
+      model: string;
+      license_plate: string;
+    };
+  };
   restaurantAddress: {
     id: string;
     street: string;
@@ -104,7 +119,7 @@ export type Type_PushNotification_Order = {
     };
     title: string;
   };
-}
+};
 
 export enum Enum_OrderTrackingInfo {
   ORDER_PLACED = "ORDER_PLACED",
@@ -120,7 +135,7 @@ export enum Enum_OrderTrackingInfo {
   CANCELLED = "CANCELLED",
   RETURNED = "RETURNED",
   RESTAURANT_ACCEPTED = "RESTAURANT_ACCEPTED",
-  ON_THE_WAY = "ON_THE_WAY"
+  ON_THE_WAY = "ON_THE_WAY",
 }
 
 export enum Enum_OrderStatus {
@@ -137,5 +152,5 @@ export enum Enum_OrderStatus {
   CANCELLED = "CANCELLED",
   RETURNED = "RETURNED",
   DELIVERY_FAILED = "DELIVERY_FAILED",
-  REJECTED = "REJECTED"
+  REJECTED = "REJECTED",
 }

@@ -27,7 +27,7 @@ import {
   Type_PushNotification_Order,
   Enum_OrderTrackingInfo,
 } from "@/src/types/Orders";
-import moment from "moment";
+
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSelector, useDispatch } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
@@ -40,6 +40,11 @@ import { useTheme } from "@/src/hooks/useTheme";
 import FFInputControl from "@/src/components/FFInputControl";
 import Spinner from "@/src/components/FFSpinner";
 import { useSocket } from "@/src/hooks/useSocket";
+import {
+  formatTimestampToDate,
+  formatTimestampToDate2,
+} from "@/src/utils/timeConverter";
+import FFAvatar from "@/src/components/FFAvatar";
 
 type OrderItem = {
   name: string;
@@ -162,6 +167,12 @@ type Styles = {
   headerRow: ViewStyle;
   toastModal: ViewStyle;
   toastText: TextStyle;
+  driverInfoContainer: ViewStyle;
+  driverRow: ViewStyle;
+  driverName: TextStyle;
+  ratingContainer: ViewStyle;
+  ratingText: TextStyle;
+  vehicleText: TextStyle;
 };
 
 const OrderCard = ({
@@ -180,10 +191,6 @@ const OrderCard = ({
   showActions?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const formatOrderTime = (timestamp: number) => {
-    return moment.unix(timestamp / 1000).format("MMM D, YYYY h:mm A");
-  };
 
   const getStatusColor = (status: string) => {
     const statusColors: {
@@ -265,7 +272,7 @@ const OrderCard = ({
               }}
             >
               <FFText style={styles.orderTime}>
-                {formatOrderTime(item.updated_at)}
+                {formatTimestampToDate2(item?.updated_at ?? 0)}
               </FFText>
               <FFView
                 style={{
@@ -289,7 +296,7 @@ const OrderCard = ({
         <FFView style={styles.itemsList}>
           {item.order_items.map((orderItem, index) => (
             <FFText key={index} style={styles.orderItem}>
-              {orderItem.quantity}x {orderItem.name}
+              {orderItem.quantity} x {orderItem.name}
               {orderItem.variant_id && (
                 <FFText style={styles.variantText}>
                   {" "}
@@ -339,6 +346,39 @@ const OrderCard = ({
               <FFText style={styles.detailText}>
                 {item.customerAddress.street}, {item.customerAddress.city}
               </FFText>
+              {item.customer_note && (
+                <>
+                  <FFText style={styles.sectionLabel}>Customer Note:</FFText>
+                  <FFText style={styles.detailText}>
+                    {item.customer_note}
+                  </FFText>
+                </>
+              )}
+              {item.driverDetails && (
+                <FFView style={styles.driverInfoContainer}>
+                  <FFText style={styles.sectionLabel}>🚗 Driver</FFText>
+                  <FFView style={styles.driverRow}>
+                    <FFAvatar avatar={item?.driverDetails?.avatar?.url} />
+                    <FFText style={styles.driverName}>
+                      {item.driverDetails.first_name}{" "}
+                      {item.driverDetails.last_name}
+                    </FFText>
+                    <FFView style={styles.ratingContainer}>
+                      <FFText style={styles.ratingText}>
+                        ⭐ {item.driverDetails.rating.average_rating}
+                      </FFText>
+                    </FFView>
+                  </FFView>
+                  {item.driverDetails.vehicle && (
+                    <FFText style={styles.vehicleText}>
+                      {item.driverDetails.vehicle.color}{" "}
+                      {item.driverDetails.vehicle.model}
+                      {item.driverDetails.vehicle.license_plate &&
+                        ` • ${item.driverDetails.vehicle.license_plate}`}
+                    </FFText>
+                  )}
+                </FFView>
+              )}
             </FFView>
           </FFView>
         </View>
@@ -394,6 +434,21 @@ export default function OrderScreen() {
   const orders = useSelector(
     (state: RootState) => state.restaurantOrderTracking.orders
   );
+
+  console.log(
+    "cehck curent order",
+    orders.filter((order: Type_PushNotification_Order) =>
+      [
+        Enum_OrderStatus.PENDING,
+        Enum_OrderStatus.PREPARING,
+        Enum_OrderStatus.RESTAURANT_PICKUP,
+        Enum_OrderStatus.DISPATCHED,
+        Enum_OrderStatus.EN_ROUTE,
+        Enum_OrderStatus.READY_FOR_PICKUP,
+      ].includes(order.status)
+    )
+  );
+
   const dispatch = useDispatch();
 
   const { socket, latestOrder } = useSocket(
@@ -421,13 +476,31 @@ export default function OrderScreen() {
         const apiOrders = response.data.data.orders;
         console.log("Fetched orders:", apiOrders.length);
 
-        apiOrders.forEach((order) => {
+        // Only process current orders, not completed/cancelled/dispatched ones
+        const currentOrdersOnly = apiOrders.filter((order) =>
+          [
+            Enum_OrderStatus.PENDING,
+            Enum_OrderStatus.RESTAURANT_ACCEPTED,
+            Enum_OrderStatus.PREPARING,
+            Enum_OrderStatus.DISPATCHED,
+            Enum_OrderStatus.RESTAURANT_PICKUP,
+            Enum_OrderStatus.EN_ROUTE,
+            Enum_OrderStatus.READY_FOR_PICKUP,
+          ].includes(order.status)
+        );
+
+        console.log(
+          `Filtered current orders: ${currentOrdersOnly.length} out of ${apiOrders.length}`
+        );
+
+        currentOrdersOnly.forEach((order) => {
           dispatch(
             updateAndSaveOrderTracking({
               orderId: order.id,
               customer_id: order.customer_id,
               total_amount: parseFloat(order.total_amount) || 0,
               status: order.status,
+              customer_note: order.customer_note || "",
               order_items: order.order_items.map((item) => ({
                 item_id: item.item_id,
                 variant_id: item.variant_id || "",
@@ -438,7 +511,11 @@ export default function OrderScreen() {
                   item.price_at_time_of_order.toString(),
                 variant_name: item.menu_item_variant?.variant || "",
               })),
-              updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
+              updated_at: order.order_time
+                ? typeof order.order_time === "number"
+                  ? order.order_time
+                  : new Date(order.order_time).getTime()
+                : Date.now(),
               tracking_info:
                 order.status === Enum_OrderStatus.PENDING
                   ? Enum_OrderTrackingInfo.ORDER_PLACED
@@ -531,6 +608,7 @@ export default function OrderScreen() {
           customer_id: order.customer_id,
           total_amount: parseFloat(order.total_amount) || 0,
           status: order.status,
+          customer_note: order.customer_note || "",
           order_items: order.order_items.map((item) => ({
             item_id: item.item_id,
             variant_id: item.variant_id || "",
@@ -541,7 +619,11 @@ export default function OrderScreen() {
             price_after_applied_promotion:
               item.price_at_time_of_order.toString(),
           })),
-          updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
+          updated_at: order.order_time
+            ? typeof order.order_time === "number"
+              ? order.order_time
+              : new Date(order.order_time).getTime()
+            : Date.now(),
           tracking_info: Enum_OrderTrackingInfo.DELIVERED,
           driver_id: order.driver_id || null,
           restaurant_id: order.restaurant_id,
@@ -586,7 +668,11 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCompletedOrders(formattedOrders);
+        setCompletedOrders(
+          formattedOrders.filter(
+            (item) => item.status === Enum_OrderStatus.DELIVERED
+          )
+        );
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch completed orders");
@@ -611,6 +697,7 @@ export default function OrderScreen() {
           customer_id: order.customer_id,
           total_amount: parseFloat(order.total_amount) || 0,
           status: order.status,
+          customer_note: order.customer_note || "",
           order_items: order.order_items.map((item) => ({
             item_id: item.item_id,
             variant_id: item.variant_id || "",
@@ -621,7 +708,11 @@ export default function OrderScreen() {
             price_after_applied_promotion:
               item.price_at_time_of_order.toString(),
           })),
-          updated_at: moment(order.order_time).unix() * 1000 || Date.now(),
+          updated_at: order.order_time
+            ? typeof order.order_time === "number"
+              ? order.order_time
+              : new Date(order.order_time).getTime()
+            : Date.now(),
           tracking_info: Enum_OrderTrackingInfo.CANCELLED,
           driver_id: order.driver_id || null,
           restaurant_id: order.restaurant_id,
@@ -666,7 +757,11 @@ export default function OrderScreen() {
                 title: "",
               },
         }));
-        setCancelledOrders(formattedOrders);
+        setCancelledOrders(
+          formattedOrders.filter(
+            (item) => item.status === Enum_OrderStatus.CANCELLED
+          )
+        );
       } else {
         console.error("API error:", response.data.EM);
         Alert.alert("Error", "Failed to fetch cancelled orders");
@@ -928,10 +1023,8 @@ export default function OrderScreen() {
     const currentOrders = orders.filter((order: Type_PushNotification_Order) =>
       [
         Enum_OrderStatus.PENDING,
+        Enum_OrderStatus.RESTAURANT_ACCEPTED,
         Enum_OrderStatus.PREPARING,
-        Enum_OrderStatus.RESTAURANT_PICKUP,
-        Enum_OrderStatus.DISPATCHED,
-        Enum_OrderStatus.EN_ROUTE,
         Enum_OrderStatus.READY_FOR_PICKUP,
       ].includes(order.status)
     );
@@ -952,9 +1045,13 @@ export default function OrderScreen() {
   };
 
   const CompletedOrders = () => {
+    const filteredCompletedOrders = completedOrders.filter(
+      (order: Type_PushNotification_Order) =>
+        order.status === Enum_OrderStatus.DELIVERED
+    );
     return (
       <FlatList
-        data={completedOrders}
+        data={filteredCompletedOrders}
         renderItem={renderCompletedOrder}
         keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
         contentContainerStyle={styles.list}
@@ -968,9 +1065,15 @@ export default function OrderScreen() {
   };
 
   const CancelledOrders = () => {
+    const filteredCancelledOrders = cancelledOrders.filter(
+      (order: Type_PushNotification_Order) =>
+        [Enum_OrderStatus.CANCELLED, Enum_OrderStatus.REJECTED].includes(
+          order.status
+        )
+    );
     return (
       <FlatList
-        data={cancelledOrders}
+        data={filteredCancelledOrders}
         renderItem={renderCancelledOrder}
         keyExtractor={(item: Type_PushNotification_Order) => item.orderId}
         contentContainerStyle={styles.list}
@@ -1275,5 +1378,38 @@ const styles = StyleSheet.create<Styles>({
     color: colors.white,
     fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.medium,
+  },
+  driverInfoContainer: {
+    marginTop: spacing.md,
+    // backgroundColor: colors.backgroundSecondary,
+    padding: spacing.md,
+    borderRadius: borderRadius.sm,
+  },
+  driverRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  driverName: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.text,
+  },
+  ratingContainer: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.badge,
+  },
+  ratingText: {
+    fontSize: typography.fontSize.xs,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.white,
+  },
+  vehicleText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    fontFamily: typography.fontFamily.regular,
   },
 });
