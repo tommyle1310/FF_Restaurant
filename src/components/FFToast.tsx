@@ -30,7 +30,7 @@ const FFToast: React.FC<FFToastProps> = ({
   children,
   variant = "INFO",
   isApprovalType = false,
-  duration = 20000000, // Default duration is 3 seconds
+  duration = 90000, // Default duration is 3 seconds
   onAccept,
   onReject,
 }) => {

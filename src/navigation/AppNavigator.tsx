@@ -364,7 +364,7 @@ const MainStackScreen = () => {
                 color: "#63c550",
               }}
             >
-              ${latestOrder?.total_amount ?? 0}
+              ${latestOrder?.total_restaurant_earn ?? 0}
             </FFText>
           </View>
           <View

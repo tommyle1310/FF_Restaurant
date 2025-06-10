@@ -131,9 +131,7 @@ export const useSocket = (
 
       console.log("Creating new socket connection...");
       const newSocket = createSocketConnection();
-      if (newSocket) {
-        setupSocketEvents(newSocket);
-      }
+      // Socket events are set up in the main useEffect
       isReconnectingRef.current = false;
     }, delay);
   }, []);
@@ -180,6 +178,7 @@ export const useSocket = (
         orderId: response.orderId ?? response.id ?? "",
         customer_id: response.customer_id ?? "",
         total_amount: isNaN(totalAmount) ? 0 : totalAmount,
+        total_restaurant_earn: Number(response.total_restaurant_earn) || 0,
         status: response.status ?? Enum_OrderStatus.PENDING,
         customer_note: response.customer_note ?? "",
         order_items: orderItems.map((item: any, index: number) => {
@@ -348,28 +347,13 @@ export const useSocket = (
             "Available order IDs in Redux:",
             existingOrders.map((o) => o.orderId)
           );
-          // Fallback if no existing order found - build minimal order with only status data
-          order = {
-            orderId: data.orderId ?? data.id ?? "",
-            customer_id: data.customer_id ?? "",
-            total_amount: 0,
-            status: data.status ?? Enum_OrderStatus.PENDING,
-            customer_note: "",
-            order_items: [],
-            updated_at: data.updated_at ?? Date.now(),
-            tracking_info:
-              data.tracking_info ??
-              data.status ??
-              Enum_OrderTrackingInfo.ORDER_PLACED,
-            driver_id: data.driver_id ?? null,
-            restaurant_id: data.restaurant_id ?? "",
-            restaurant_avatar: data.restaurant_avatar ?? { key: "", url: "" },
-            driver_avatar: data.driver_avatar ?? null,
-            restaurantAddress: data.restaurantAddress ?? null,
-            customerAddress: data.customerAddress ?? null,
-            driverDetails: data.driverDetails ?? null,
-          };
-          console.log("Built minimal order as fallback");
+          // DISABLED: Don't create fallback order for notifyOrderStatus - this causes variant_name loss
+          console.log(
+            "❌ SKIPPING: No existing order found for notifyOrderStatus - cannot update"
+          );
+          isProcessingRef.current = false;
+          processEventQueue();
+          return;
         }
         console.log("=== END NOTIFY ORDER STATUS DEBUG ===");
       } else {
@@ -447,79 +431,7 @@ export const useSocket = (
     buildPushNotificationOrder,
   ]);
 
-  const setupSocketEvents = useCallback(
-    (socketInstance: Socket) => {
-      socketInstance.on("connect", () => {
-        console.log(
-          "Connected to restaurant order tracking server, ID:",
-          socketInstance.id
-        );
-        setSocket(socketInstance);
-        setIsConnected(true);
-        reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
-        isReconnectingRef.current = false; // Reset reconnection flag
-        isConnectingRef.current = false; // Reset connecting flag
-        eventQueueRef.current = [];
-        processedEventIds.current.clear();
-        processEventQueue();
-      });
-
-      socketInstance.on("incomingOrderForRestaurant", (response) => {
-        console.log(
-          "Received incomingOrderForRestaurant at:",
-          new Date().toISOString()
-        );
-        console.log(
-          "Response data incomingOrder:",
-          JSON.stringify(response, null, 2)
-        );
-        const eventId = `${response.orderId ?? response.id ?? "unknown"}_${
-          response.updated_at ?? Date.now()
-        }`;
-        eventQueueRef.current.push({
-          event: "incomingOrderForRestaurant",
-          data: response,
-          id: eventId,
-        });
-        console.log("Pushed to queue, length:", eventQueueRef.current.length);
-        resetResponseTimeout();
-        processEventQueue();
-      });
-
-      // Removed old notifyOrderStatus handler - using simple handler below
-
-      socketInstance.on("disconnect", (reason) => {
-        console.log(
-          "Disconnected from restaurant order tracking server:",
-          reason
-        );
-        setIsConnected(false);
-        setSocket(null);
-
-        // Attempt manual reconnection for unexpected disconnections
-        if (
-          reason === "io server disconnect" ||
-          reason === "io client disconnect" ||
-          reason === "transport close" ||
-          reason === "transport error"
-        ) {
-          console.log(
-            "Unexpected disconnect, attempting manual reconnection..."
-          );
-          attemptReconnection();
-        }
-      });
-
-      socketInstance.on("connect_error", (error) => {
-        console.error("Restaurant socket connection error:", error);
-        setIsConnected(false);
-        setSocket(null);
-        isConnectingRef.current = false; // Reset connecting flag on error
-        attemptReconnection();
-      });
-    },
-    [processEventQueue]
-  );
+  // Removed old complex setupSocketEvents - using simple handlers now
 
   useEffect(() => {
     if (!accessToken) {
@@ -643,8 +555,16 @@ export const useSocket = (
           "->",
           response.status
         );
+        console.log(
+          "🔍 Preserving existing order_items with variant_name:",
+          existingOrder.order_items.map((item: any) => ({
+            name: item.name,
+            variant_name: item.variant_name,
+          }))
+        );
+
         const updatedOrder = {
-          ...existingOrder,
+          ...existingOrder, // ✅ This preserves ALL existing data including order_items with variant_name
           status: response.status ?? existingOrder.status,
           tracking_info: response.tracking_info ?? existingOrder.tracking_info,
           updated_at: response.updated_at ?? Date.now(),
@@ -653,6 +573,14 @@ export const useSocket = (
           }),
           ...(response.driver_id && { driver_id: response.driver_id }),
         };
+
+        console.log(
+          "✅ Updated order_items preserved:",
+          updatedOrder.order_items.map((item: any) => ({
+            name: item.name,
+            variant_name: item.variant_name,
+          }))
+        );
 
         dispatch(updateAndSaveOrderTracking(updatedOrder));
         setLatestOrder(updatedOrder);

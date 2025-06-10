@@ -57,6 +57,7 @@ export type Type_PushNotification_Order = {
   updated_at: number;
   customer_id: string;
   total_amount: number;
+  total_restaurant_earn: number;
   customer_note?: string;
   order_items: {
     item_id: string;
@@ -82,6 +83,20 @@ export type Type_PushNotification_Order = {
     first_name: string;
     last_name: string;
     avatar: any;
+    rating: {
+      average_rating: string;
+    };
+    vehicle: {
+      color: string;
+      model: string;
+      license_plate: string;
+    };
+  };
+  driver?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    avatar: { url: string };
     rating: {
       average_rating: string;
     };

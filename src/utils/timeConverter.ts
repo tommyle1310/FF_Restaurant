@@ -57,6 +57,11 @@ export const formatTimestampToDate = (timestamp: number): string => {
 };
 
 export const formatTimestampToDate2 = (timestamp: number) => {
+  // Validate timestamp
+  if (!timestamp || timestamp === 0 || isNaN(timestamp)) {
+    return "Invalid Date";
+  }
+
   // Auto-detect if timestamp is in seconds or milliseconds
   // If timestamp length is 10 digits, it's seconds (e.g., 1640995200)
   // If timestamp length is 13 digits, it's milliseconds (e.g., 1640995200000)
@@ -69,9 +74,18 @@ export const formatTimestampToDate2 = (timestamp: number) => {
   } else if (timestampStr.length === 13) {
     // Already in milliseconds
     dateTimestamp = timestamp;
+  } else {
+    // Invalid timestamp format
+    return "Invalid Date";
   }
 
   const date = new Date(dateTimestamp);
+
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    return "Invalid Date";
+  }
+
   const options: Intl.DateTimeFormatOptions = {
     weekday: "long", // "Monday"
     day: "2-digit", // "09"

@@ -83,6 +83,7 @@ type Order = {
   driver_id: string | null;
   status: Enum_OrderStatus;
   total_amount: string;
+  total_restaurant_earn: string;
   delivery_fee: string;
   payment_status: string;
   payment_method: string;
@@ -100,6 +101,10 @@ type Order = {
   driver?: {
     id: string;
     avatar: { url: string };
+    first_name: string;
+    last_name: string;
+    rating: { average_rating: string };
+    vehicle: { color: string; model: string; license_plate: string };
   };
   customerAddress?: {
     id?: string;
@@ -247,6 +252,7 @@ const OrderCard = ({
     e.stopPropagation();
     action();
   };
+  console.log("echck vairant", item?.order_items?.[0]?.variant_name);
 
   return (
     <FFView onPress={() => setIsExpanded(!isExpanded)} style={styles.orderCard}>
@@ -273,7 +279,7 @@ const OrderCard = ({
               }}
             >
               <FFText style={styles.orderTime}>
-                {formatTimestampToDate2(item?.updated_at ?? 0)}
+                {formatTimestampToDate2(item?.updated_at ?? Date.now())}
               </FFText>
               <FFView
                 style={{
@@ -347,6 +353,10 @@ const OrderCard = ({
               <FFText style={styles.detailText}>
                 {item.customerAddress.street}, {item.customerAddress.city}
               </FFText>
+              <FFText style={styles.sectionLabel}>Restaurant Earn:</FFText>
+              <FFText style={styles.detailText}>
+                ${item.total_restaurant_earn.toFixed(2)}
+              </FFText>
               {item.customer_note && (
                 <>
                   <FFText style={styles.sectionLabel}>Customer Note:</FFText>
@@ -355,30 +365,42 @@ const OrderCard = ({
                   </FFText>
                 </>
               )}
-              {item.driverDetails && (
-                <FFView style={styles.driverInfoContainer}>
-                  <FFView style={styles.driverRow}>
-                    <FFAvatar avatar={item?.driverDetails?.avatar?.url} />
-                    <FFText style={styles.driverName}>
-                      {item.driverDetails.first_name}{" "}
-                      {item.driverDetails.last_name}
-                    </FFText>
-                    <FFView style={styles.ratingContainer}>
-                      <FFText style={styles.ratingText}>
-                        ⭐ {item.driverDetails.rating.average_rating}
-                      </FFText>
+              {(item.driverDetails || item.driver) &&
+                (() => {
+                  const driverInfo = item.driverDetails || item.driver;
+                  const vehicle =
+                    item.driverDetails?.vehicle || item.driver?.vehicle;
+
+                  return (
+                    <FFView style={styles.driverInfoContainer}>
+                      <FFView style={styles.driverRow}>
+                        <FFAvatar
+                          size={40}
+                          avatar={
+                            item?.driverDetails?.avatar?.url ||
+                            item?.driver?.avatar?.url
+                          }
+                        />
+                        <FFText style={styles.driverName}>
+                          {driverInfo?.first_name || ""}{" "}
+                          {driverInfo?.last_name || ""}
+                        </FFText>
+                        <FFView style={styles.ratingContainer}>
+                          <FFText style={styles.ratingText}>
+                            ⭐ {driverInfo?.rating?.average_rating || "N/A"}
+                          </FFText>
+                        </FFView>
+                      </FFView>
+                      {vehicle && (
+                        <FFText style={styles.vehicleText}>
+                          {vehicle.color} {vehicle.model}
+                          {vehicle.license_plate &&
+                            ` • ${vehicle.license_plate}`}
+                        </FFText>
+                      )}
                     </FFView>
-                  </FFView>
-                  {item.driverDetails.vehicle && (
-                    <FFText style={styles.vehicleText}>
-                      {item.driverDetails.vehicle.color}{" "}
-                      {item.driverDetails.vehicle.model}
-                      {item.driverDetails.vehicle.license_plate &&
-                        ` • ${item.driverDetails.vehicle.license_plate}`}
-                    </FFText>
-                  )}
-                </FFView>
-              )}
+                  );
+                })()}
             </FFView>
           </FFView>
         </View>
@@ -435,20 +457,6 @@ export default function OrderScreen() {
     (state: RootState) => state.restaurantOrderTracking.orders
   );
 
-  console.log(
-    "cehck curent order",
-    orders.filter((order: Type_PushNotification_Order) =>
-      [
-        Enum_OrderStatus.PENDING,
-        Enum_OrderStatus.PREPARING,
-        Enum_OrderStatus.RESTAURANT_PICKUP,
-        Enum_OrderStatus.DISPATCHED,
-        Enum_OrderStatus.EN_ROUTE,
-        Enum_OrderStatus.READY_FOR_PICKUP,
-      ].includes(order.status)
-    )
-  );
-
   const dispatch = useDispatch();
 
   const { socket, latestOrder } = useSocket(
@@ -466,183 +474,13 @@ export default function OrderScreen() {
     return () => clearTimeout(timeout);
   }, []);
 
+  // FIXED: Current Orders now uses Redux data only, no API calls
   const fetchOrders = useCallback(async () => {
-    try {
-      // Check if we just logged out - if so, skip fetching orders
-      const justLoggedOut = await AsyncStorage.getItem("@just_logged_out");
-      if (justLoggedOut === "true") {
-        console.log("🚫 Skipping order fetch - just logged out");
-        // Clear the flag after checking it
-        await AsyncStorage.removeItem("@just_logged_out");
-        await AsyncStorage.removeItem("@logout_timestamp");
-        console.log("🧹 Cleared logout flags after checking");
-        return;
-      }
-
-      const response = await axiosInstance.get<ApiResponse>(
-        `/restaurants/${restaurantId}/orders?limit=50`
-      );
-
-      if (response.data.EC === 0) {
-        const apiOrders = response.data.data.orders;
-        console.log("Fetched orders:", apiOrders.length);
-
-        // Check logout timestamp to filter out old orders
-        const logoutTimestamp = await AsyncStorage.getItem("@logout_timestamp");
-        const logoutTime = logoutTimestamp ? parseInt(logoutTimestamp) : 0;
-        console.log(
-          `🔍 LOGOUT FILTER DEBUG: logoutTimestamp="${logoutTimestamp}", logoutTime=${logoutTime}`
-        );
-
-        // Only process current orders, not completed/cancelled/dispatched ones
-        let currentOrdersOnly = apiOrders.filter((order) =>
-          [
-            Enum_OrderStatus.PENDING,
-            Enum_OrderStatus.RESTAURANT_ACCEPTED,
-            Enum_OrderStatus.PREPARING,
-            Enum_OrderStatus.READY_FOR_PICKUP,
-          ].includes(order.status)
-        );
-
-        // Filter out orders that were created before logout
-        if (logoutTime > 0) {
-          const beforeFilterCount = currentOrdersOnly.length;
-          currentOrdersOnly = currentOrdersOnly.filter((order) => {
-            // Try multiple timestamp fields with type assertion
-            const orderAny = order as any;
-            const orderTime = order.order_time
-              ? new Date(order.order_time).getTime()
-              : orderAny.created_at
-              ? typeof orderAny.created_at === "number"
-                ? orderAny.created_at * 1000
-                : new Date(orderAny.created_at).getTime()
-              : orderAny.updated_at
-              ? typeof orderAny.updated_at === "number"
-                ? orderAny.updated_at * 1000
-                : new Date(orderAny.updated_at).getTime()
-              : 0;
-
-            console.log(
-              `Order ${
-                order.id || orderAny.orderId
-              }: orderTime=${orderTime}, logoutTime=${logoutTime}, keep=${
-                orderTime > logoutTime
-              }`
-            );
-            return orderTime > logoutTime;
-          });
-          console.log(
-            `Filtered out ${
-              beforeFilterCount - currentOrdersOnly.length
-            } orders from before logout`
-          );
-        }
-
-        console.log(
-          `Filtered current orders: ${currentOrdersOnly.length} out of ${apiOrders.length}`
-        );
-
-        currentOrdersOnly.forEach((order) => {
-          dispatch(
-            updateAndSaveOrderTracking({
-              orderId: order.id,
-              customer_id: order.customer_id,
-              total_amount: parseFloat(order.total_amount) || 0,
-              status: order.status,
-              customer_note: order.customer_note || "",
-              order_items: order.order_items.map((item) => ({
-                item_id: item.item_id,
-                variant_id: item.variant_id || "",
-                name: item.menu_item?.name || item.name || "Unknown Item",
-                quantity: item.quantity,
-                price_at_time_of_order: item.price_at_time_of_order.toString(),
-                price_after_applied_promotion:
-                  item.price_at_time_of_order.toString(),
-                variant_name: item.menu_item_variant?.variant || "",
-              })),
-              updated_at: order.order_time
-                ? typeof order.order_time === "number"
-                  ? order.order_time
-                  : new Date(order.order_time).getTime()
-                : Date.now(),
-              tracking_info:
-                order.status === Enum_OrderStatus.PENDING
-                  ? Enum_OrderTrackingInfo.ORDER_PLACED
-                  : order.status === Enum_OrderStatus.RESTAURANT_ACCEPTED
-                  ? Enum_OrderTrackingInfo.RESTAURANT_ACCEPTED
-                  : order.status === Enum_OrderStatus.PREPARING
-                  ? Enum_OrderTrackingInfo.PREPARING
-                  : order.status === Enum_OrderStatus.EN_ROUTE
-                  ? Enum_OrderTrackingInfo.EN_ROUTE
-                  : order.status === Enum_OrderStatus.READY_FOR_PICKUP
-                  ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
-                  : order.status === Enum_OrderStatus.RESTAURANT_PICKUP
-                  ? Enum_OrderTrackingInfo.RESTAURANT_PICKUP
-                  : order.status === Enum_OrderStatus.DELIVERED
-                  ? Enum_OrderTrackingInfo.DELIVERED
-                  : Enum_OrderTrackingInfo.CANCELLED,
-              driver_id: order.driver_id || null,
-              restaurant_id: order.restaurant_id,
-              restaurant_avatar: {
-                key: order.restaurant_id,
-                url: order.restaurant_id,
-              },
-              driver_avatar: order.driver?.avatar
-                ? { key: order.driver.id, url: order.driver.avatar.url }
-                : null,
-              restaurantAddress: {
-                id: order.restaurantAddress?.id || "",
-                street: order.restaurantAddress?.street || "",
-                city: order.restaurantAddress?.city || "",
-                nationality: order.restaurantAddress?.nationality || "",
-                is_default: order.restaurantAddress?.is_default || false,
-                created_at: order.restaurantAddress?.created_at || Date.now(),
-                updated_at: order.restaurantAddress?.updated_at || Date.now(),
-                postal_code: order.restaurantAddress?.postal_code || 0,
-                location: order.restaurantAddress?.location || {
-                  lat: 0,
-                  lng: 0,
-                },
-                title: order.restaurantAddress?.title || "",
-              },
-              customerAddress: order.customerAddress
-                ? {
-                    id: order.customerAddress.id || "",
-                    street: order.customerAddress.street || "",
-                    city: order.customerAddress.city || "",
-                    nationality: order.customerAddress.nationality || "",
-                    is_default: order.customerAddress.is_default || false,
-                    postal_code: order.customerAddress.postal_code || 0,
-                    location: order.customerAddress.location || {
-                      lat: 0,
-                      lng: 0,
-                    },
-                    title: order.customerAddress.title || "",
-                  }
-                : {
-                    id: "",
-                    street: "",
-                    city: "",
-                    nationality: "",
-                    is_default: false,
-                    postal_code: 0,
-                    location: { lat: 0, lng: 0 },
-                    title: "",
-                  },
-            })
-          );
-        });
-      } else {
-        console.error("API error:", response.data.EM);
-        Alert.alert("Error", "Failed to fetch orders");
-      }
-    } catch (error) {
-      console.error("Fetch orders error:", error);
-      Alert.alert("Error", "Failed to fetch orders");
-    } finally {
-      setLoading(false);
-    }
-  }, [restaurantId, dispatch]);
+    console.log(
+      "✅ Current Orders using Redux data only - no API fetch needed"
+    );
+    setLoading(false);
+  }, []);
 
   const fetchCompletedOrders = useCallback(async () => {
     try {
@@ -656,6 +494,7 @@ export default function OrderScreen() {
           orderId: order.id,
           customer_id: order.customer_id,
           total_amount: parseFloat(order.total_amount) || 0,
+          total_restaurant_earn: parseFloat(order.total_restaurant_earn) || 0,
           status: order.status,
           customer_note: order.customer_note || "",
           order_items: order.order_items.map((item) => ({
@@ -676,6 +515,7 @@ export default function OrderScreen() {
           tracking_info: Enum_OrderTrackingInfo.DELIVERED,
           driver_id: order.driver_id || null,
           restaurant_id: order.restaurant_id,
+          driver: order?.driver,
           restaurant_avatar: {
             key: order.restaurant_id,
             url: order.restaurant_id,
@@ -745,6 +585,7 @@ export default function OrderScreen() {
           orderId: order.id,
           customer_id: order.customer_id,
           total_amount: parseFloat(order.total_amount) || 0,
+          total_restaurant_earn: parseFloat(order.total_restaurant_earn) || 0,
           status: order.status,
           customer_note: order.customer_note || "",
           order_items: order.order_items.map((item) => ({
@@ -769,6 +610,8 @@ export default function OrderScreen() {
             key: order.restaurant_id,
             url: order.restaurant_id,
           },
+          // driverDetails: order.driverDetails || order
+          driver: order?.driver,
           driver_avatar: order.driver?.avatar
             ? { key: order.driver.id, url: order.driver.avatar.url }
             : null,
@@ -943,27 +786,32 @@ export default function OrderScreen() {
             (o: Type_PushNotification_Order) => o.orderId === orderId
           );
           if (order) {
+            console.log(
+              "🔍 ACCEPT ORDER: Preserving existing order_items with variant_name:",
+              order.order_items.map((item) => ({
+                name: item.name,
+                variant_name: item.variant_name,
+              }))
+            );
+
             dispatch(
               updateAndSaveOrderTracking({
-                ...order,
+                ...order, // ✅ Preserve ALL existing data including order_items with variant_name
                 status: Enum_OrderStatus.PREPARING,
                 updated_at: Date.now(),
                 tracking_info: Enum_OrderTrackingInfo.PREPARING,
                 total_amount: parseFloat(response.data.data.total_amount) || 0,
-                order_items: response.data.data.order_items.map(
-                  (item: any) => ({
-                    item_id: item.item_id,
-                    variant_id: item.variant_id || "",
-                    name: item.menu_item?.name || item.name || "Unknown Item",
-                    quantity: item.quantity,
-                    price_at_time_of_order:
-                      item.price_at_time_of_order.toString(),
-                    price_after_applied_promotion:
-                      item.price_at_time_of_order.toString(),
-                    variant_name: item.menu_item_variant?.variant || "",
-                  })
-                ),
+                // ✅ Keep existing order_items - don't rebuild from API response
+                // order_items: order.order_items, // Already preserved by ...order spread
               })
+            );
+
+            console.log(
+              "✅ ACCEPT ORDER: Preserved order_items with variant_name:",
+              order.order_items.map((item) => ({
+                name: item.name,
+                variant_name: item.variant_name,
+              }))
             );
           }
           setSelectedAcceptOrderId(null);
@@ -1445,14 +1293,14 @@ const styles = StyleSheet.create<Styles>({
   driverInfoContainer: {
     marginTop: spacing.md,
     // backgroundColor: colors.backgroundSecondary,
-    padding: spacing.md,
     borderRadius: borderRadius.sm,
   },
   driverRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    // justifyContent: "space-between",
     alignItems: "center",
     marginBottom: spacing.xs,
+    gap: spacing.sm,
   },
   driverName: {
     fontSize: typography.fontSize.sm,
