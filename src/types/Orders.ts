@@ -59,6 +59,9 @@ export type Type_PushNotification_Order = {
   total_amount: number;
   total_restaurant_earn: number;
   customer_note?: string;
+  cancellation_reason?: string;
+  cancellation_title?: string;
+  cancellation_description?: string;
   order_items: {
     item_id: string;
     variant_id: string;

@@ -82,6 +82,7 @@ type Order = {
   restaurant_id: string;
   driver_id: string | null;
   status: Enum_OrderStatus;
+  updated_at?: number;
   total_amount: string;
   total_restaurant_earn: string;
   delivery_fee: string;
@@ -91,6 +92,9 @@ type Order = {
   restaurant_note?: string;
   order_items: OrderItem[];
   order_time: string;
+  cancellation_reason: string;
+  cancellation_title: string;
+  cancellation_description: string;
   delivery_time: string;
   customer: {
     id: string;
@@ -179,6 +183,12 @@ type Styles = {
   ratingContainer: ViewStyle;
   ratingText: TextStyle;
   vehicleText: TextStyle;
+  cancellationContainer: ViewStyle;
+  cancellationHeader: ViewStyle;
+  cancellationHeaderText: TextStyle;
+  cancellationItem: ViewStyle;
+  cancellationLabel: TextStyle;
+  cancellationText: TextStyle;
 };
 
 const OrderCard = ({
@@ -252,7 +262,6 @@ const OrderCard = ({
     e.stopPropagation();
     action();
   };
-  console.log("echck vairant", item?.order_items?.[0]?.variant_name);
 
   return (
     <FFView onPress={() => setIsExpanded(!isExpanded)} style={styles.orderCard}>
@@ -401,6 +410,53 @@ const OrderCard = ({
                     </FFView>
                   );
                 })()}
+              {(item.cancellation_title ||
+                item.cancellation_reason ||
+                item.cancellation_description) &&
+                (() => {
+                  return (
+                    <FFView style={styles.cancellationContainer}>
+                      <View style={styles.cancellationHeader}>
+                        <FFText style={styles.cancellationHeaderText}>
+                          Cancellation Details
+                        </FFText>
+                      </View>
+
+                      {item.cancellation_title && (
+                        <View style={styles.cancellationItem}>
+                          <FFText style={styles.cancellationLabel}>
+                            Title:
+                          </FFText>
+                          <FFText style={styles.cancellationText}>
+                            {item.cancellation_title}
+                          </FFText>
+                        </View>
+                      )}
+
+                      {item.cancellation_reason && (
+                        <View style={styles.cancellationItem}>
+                          <FFText style={styles.cancellationLabel}>
+                            Reason:
+                          </FFText>
+                          <FFText style={styles.cancellationText}>
+                            {item.cancellation_reason}
+                          </FFText>
+                        </View>
+                      )}
+
+                      {item.cancellation_description && (
+                        <View style={styles.cancellationItem}>
+                          <FFText style={styles.cancellationLabel}>
+                            Description:
+                          </FFText>
+                          <FFText style={styles.cancellationText}>
+                            {item.cancellation_description}
+                          </FFText>
+                        </View>
+                      )}
+                    </FFView>
+                  );
+                })()}
             </FFView>
           </FFView>
         </View>
@@ -507,10 +563,10 @@ export default function OrderScreen() {
             price_after_applied_promotion:
               item.price_at_time_of_order.toString(),
           })),
-          updated_at: order.order_time
-            ? typeof order.order_time === "number"
-              ? order.order_time
-              : new Date(order.order_time).getTime()
+          updated_at: order.updated_at
+            ? typeof order.updated_at === "number"
+              ? order.updated_at
+              : new Date(order.updated_at).getTime()
             : Date.now(),
           tracking_info: Enum_OrderTrackingInfo.DELIVERED,
           driver_id: order.driver_id || null,
@@ -598,12 +654,15 @@ export default function OrderScreen() {
             price_after_applied_promotion:
               item.price_at_time_of_order.toString(),
           })),
-          updated_at: order.order_time
-            ? typeof order.order_time === "number"
-              ? order.order_time
-              : new Date(order.order_time).getTime()
+          updated_at: order.updated_at
+            ? typeof order.updated_at === "number"
+              ? order.updated_at
+              : new Date(order.updated_at).getTime()
             : Date.now(),
           tracking_info: Enum_OrderTrackingInfo.CANCELLED,
+          cancellation_reason: order.cancellation_reason,
+          cancellation_title: order.cancellation_title,
+          cancellation_description: order.cancellation_description,
           driver_id: order.driver_id || null,
           restaurant_id: order.restaurant_id,
           restaurant_avatar: {
@@ -1322,5 +1381,51 @@ const styles = StyleSheet.create<Styles>({
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     fontFamily: typography.fontFamily.regular,
+  },
+  cancellationContainer: {
+    marginTop: spacing.md,
+    backgroundColor: "#FFF5F5", // Light red background
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: "#FED7D7", // Light red border
+    padding: spacing.md,
+    ...shadows.xs,
+  },
+  cancellationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: "#FED7D7",
+  },
+  cancellationHeaderText: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.error,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  cancellationItem: {
+    marginBottom: spacing.sm,
+  },
+  cancellationLabel: {
+    fontSize: typography.fontSize.xs,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.error,
+    marginBottom: spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  cancellationText: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.text,
+    lineHeight: typography.lineHeight.sm,
+    backgroundColor: colors.white,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: "#FED7D7",
   },
 });
