@@ -47,6 +47,7 @@ import { spacing, typography } from "../theme";
 import axiosInstance from "../utils/axiosConfig";
 import FFInputControl from "../components/FFInputControl";
 import FFModal from "../components/FFModal";
+import { BACKEND_URL } from "../utils/constants";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -127,9 +128,11 @@ const MainStackScreen = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
-  const { restaurant_id, id: restaurantUserId } = useSelector(
-    (state: RootState) => state.auth
-  );
+  const {
+    restaurant_id,
+    id: restaurantUserId,
+    accessToken,
+  } = useSelector((state: RootState) => state.auth);
   const { expoPushToken } = usePushNotifications();
   const [latestOrder, setLatestOrder] =
     useState<Type_PushNotification_Order | null>(null);
@@ -260,6 +263,56 @@ const MainStackScreen = () => {
     description,
   ]);
 
+  // Handle automatic rejection when toast times out
+  const handleToastTimeout = useCallback(async () => {
+    console.log("Toast timeout - auto rejecting order");
+
+    if (!latestOrder || !restaurant_id || !restaurantUserId) {
+      console.error("Missing required data for auto reject");
+      return;
+    }
+
+    // Set default values for auto rejection
+    const defaultReason = "No Response";
+    const defaultTitle = "Restaurant Not Responding";
+    const defaultDescription =
+      "The restaurant did not respond to the order within the specified time limit.";
+
+    const requestBody = {
+      cancelled_by: "restaurant" as const,
+      cancelled_by_id: restaurantUserId,
+      reason: defaultReason,
+      title: defaultTitle,
+      description: defaultDescription,
+    };
+
+    try {
+      console.log("Auto rejecting order with:", requestBody);
+
+      const response = await fetch(
+        `${BACKEND_URL}/orders/${latestOrder.orderId}/cancel`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (response.ok) {
+        console.log("Order auto-rejected successfully");
+        // Close the toast
+        setIsShowIncomingOrderToast(false);
+      } else {
+        console.error("Failed to auto-reject order:", response.status);
+      }
+    } catch (error) {
+      console.error("Error auto-rejecting order:", error);
+    }
+  }, [latestOrder, restaurant_id, restaurantUserId, accessToken]);
+
   if (isLoading) return <Spinner isVisible isOverlay />;
 
   return (
@@ -328,13 +381,14 @@ const MainStackScreen = () => {
       </MainStack.Navigator>
       <FFToast
         disabledClose
+        title="Incoming Order"
         onAccept={handleAcceptOrder}
         onReject={handleRejectOrder}
         onClose={() => setIsShowIncomingOrderToast(false)}
+        onTimeout={handleToastTimeout}
         visible={isShowIncomingOrderToast}
         isApprovalType
       >
-        <FFText>Incoming Order</FFText>
         <View
           style={{
             flexDirection: "row",

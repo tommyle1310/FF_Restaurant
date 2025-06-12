@@ -12,7 +12,8 @@ const ReadonlyProfileComponents = ({
 }: {
   toggleStatus: () => void;
 }) => {
-  const { user_id, avatar, restaurant_name, email , contact_phone} = useSelector((state: RootState) => state.auth);
+  const { user_id, avatar, restaurant_name, email, contact_phone } =
+    useSelector((state: RootState) => state.auth);
 
   return (
     <View style={styles.container}>
@@ -20,7 +21,11 @@ const ReadonlyProfileComponents = ({
         <FFAvatar avatar={avatar?.url} />
         <View style={styles.userInfo}>
           <FFText fontSize="lg">{restaurant_name}</FFText>
-          <FFText fontWeight="400" style={styles.emailText}>
+          <FFText
+            fontWeight="400"
+            colorDark={colors.textSecondary}
+            style={styles.emailText}
+          >
             {email}
           </FFText>
         </View>
@@ -32,7 +37,11 @@ const ReadonlyProfileComponents = ({
         <FFText style={styles.labelText} fontWeight="400">
           Phone Number:
         </FFText>
-        <FFText fontWeight="400">{contact_phone?.find(item => item?.is_default)?.number || contact_phone?.[0]?.number || ''}</FFText>
+        <FFText fontWeight="400">
+          {contact_phone?.find((item) => item?.is_default)?.number ||
+            contact_phone?.[0]?.number ||
+            ""}
+        </FFText>
       </View>
       <View style={styles.infoRow}>
         <FFText style={styles.labelText} fontWeight="400">
@@ -61,9 +70,11 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
+    justifyContent: "center",
   },
   emailText: {
     color: colors.textSecondary,
+    fontSize: 14,
   },
   editButton: {
     backgroundColor: colors.primary,

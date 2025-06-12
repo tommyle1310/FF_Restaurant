@@ -50,7 +50,9 @@ const AddressDetailsScreen = () => {
     lat: number;
     lng: number;
   } | null>(null);
-  const { address, id, restaurant_id } = useSelector((state: RootState) => state.auth);
+  const { address, id, restaurant_id } = useSelector(
+    (state: RootState) => state.auth
+  );
 
   const route = useRoute<AddressDetailRouteProp>();
   const addressDetail = route.params?.addressDetail;
@@ -58,7 +60,16 @@ const AddressDetailsScreen = () => {
 
   useEffect(() => {
     if (addressDetail && !is_create_type) {
-      const { id, city, is_default, location, nationality, street, title, postal_code } = addressDetail;
+      const {
+        id,
+        city,
+        is_default,
+        location,
+        nationality,
+        street,
+        title,
+        postal_code,
+      } = addressDetail;
       setAddressTitle(title);
       setCity(city);
       setNationality(nationality);
@@ -94,41 +105,55 @@ const AddressDetailsScreen = () => {
         postal_code: +postalCode,
         location: {
           lng: selectedLocation.lng,
-          lat: selectedLocation.lat
+          lat: selectedLocation.lat,
         },
         title: addressTitle,
       };
-      console.log('cehck adres data', addressData, 'adre detail',addressDetail)
+      console.log(
+        "cehck adres data",
+        addressData,
+        "adre detail",
+        addressDetail
+      );
       let addressResponse;
       if (is_create_type) {
         // Create new address
-        addressResponse = await axiosInstance.post('/address_books', addressData);
+        addressResponse = await axiosInstance.post(
+          "/address_books",
+          addressData
+        );
       } else {
         // Update existing address
-        addressResponse = await axiosInstance.patch(`/address_books/${addressDetail?.id}`, addressData);
+        addressResponse = await axiosInstance.patch(
+          `/address_books/${addressDetail?.id}`,
+          addressData
+        );
       }
 
-      console.log('cehck addre respo', addressResponse.data)
+      console.log("cehck addre respo", addressResponse.data);
       if (addressResponse.data.EC === 0) {
         // Update restaurant with new address
-        const restaurantResponse = await axiosInstance.patch(`/restaurants/${restaurant_id}`, {
-          address_id: addressResponse.data.data.id
-        });
+        const restaurantResponse = await axiosInstance.patch(
+          `/restaurants/${restaurant_id}`,
+          {
+            address_id: addressResponse.data.data.id,
+          }
+        );
 
-        console.log('cehk res data', restaurantResponse.data)
+        console.log("cehk res data", restaurantResponse.data);
         if (restaurantResponse.data.EC === 0) {
           const newAuthState = {
             ...restaurantResponse.data.data,
             address: {
               ...addressData,
-              id: addressResponse.data.data.id
-            }
+              id: addressResponse.data.data.id,
+            },
           };
 
           // Update both Redux and AsyncStorage
           await Promise.all([
             dispatch(setAuthState(newAuthState)),
-            dispatch(saveTokenToAsyncStorage(newAuthState))
+            dispatch(saveTokenToAsyncStorage(newAuthState)),
           ]);
 
           setIsShowSlideUpModal(false);
@@ -149,7 +174,7 @@ const AddressDetailsScreen = () => {
           setTimeout(() => {
             navigation.reset({
               index: 0,
-              routes: [{ name: 'BottomTabs' }],
+              routes: [{ name: "BottomTabs" }],
             });
           }, 1500);
         } else {
@@ -187,9 +212,10 @@ const AddressDetailsScreen = () => {
         visible={isShowModalSuccess}
       >
         <FFText>
-          {modalMessage || (is_create_type
-            ? "Successfully added new address"
-            : "Successfully updated address")}
+          {modalMessage ||
+            (is_create_type
+              ? "Successfully added new address"
+              : "Successfully updated address")}
         </FFText>
       </FFModal>
       <SlideUpModal
@@ -208,7 +234,7 @@ const AddressDetailsScreen = () => {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <View>
+            <View style={{ gap: spacing.md }}>
               <FFInputControl
                 error={""}
                 label="Street Name"
@@ -239,8 +265,8 @@ const AddressDetailsScreen = () => {
               />
               <View>
                 <FFText
-                  style={{ color: "#333", fontSize: 14 }}
-                  fontWeight="400"
+                  style={{ color: "#333", fontSize: 14, marginBottom: 4 }}
+                  fontWeight="600"
                 >
                   Nationality
                 </FFText>
@@ -259,14 +285,7 @@ const AddressDetailsScreen = () => {
               <TouchableOpacity
                 className="flex flex-row items-center gap-2"
                 onPress={() => setIsShowCountryPicker(true)}
-              >
-                <FFText fontWeight="400" fontSize="md">
-                  Set this as default address
-                </FFText>
-                <FFToggle
-                  onChange={() => setIsDefaultAddress(!isDefaultAddress)}
-                />
-              </TouchableOpacity>
+              ></TouchableOpacity>
             </View>
 
             <FFButton

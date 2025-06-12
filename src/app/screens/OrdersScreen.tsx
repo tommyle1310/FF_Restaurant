@@ -396,7 +396,7 @@ const OrderCard = ({
                         </FFText>
                         <FFView style={styles.ratingContainer}>
                           <FFText style={styles.ratingText}>
-                            ⭐ {driverInfo?.rating?.average_rating || "N/A"}
+                            ⭐ {driverInfo?.rating?.average_rating || "5.0"}
                           </FFText>
                         </FFView>
                       </FFView>
@@ -813,8 +813,6 @@ export default function OrderScreen() {
       ) {
         await fetchCancelledOrders();
       }
-
-      showModal("Success", `Order ${newStatus.toLowerCase()} successfully`);
     } catch (error) {
       console.error("Update status error:", error);
       showModal("Error", "Failed to update order status");
@@ -874,7 +872,6 @@ export default function OrderScreen() {
             );
           }
           setSelectedAcceptOrderId(null);
-          showModal("Success", "Order accepted successfully");
           await fetchOrders();
         } else {
           throw new Error(response.data.EM || "Failed to accept order");
@@ -924,7 +921,6 @@ export default function OrderScreen() {
         setDescription("");
         setSelectedCancelledOrderId(null);
         await fetchCancelledOrders();
-        showModal("Success", "Order rejected successfully");
       }
     } catch (error) {
       console.error("Error rejecting order:", error);

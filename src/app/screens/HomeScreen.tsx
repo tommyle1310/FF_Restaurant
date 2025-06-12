@@ -20,6 +20,8 @@ import {
 } from "@/src/store/authSlice";
 import FFModal from "@/src/components/FFModal";
 import { useTheme } from "@/src/hooks/useTheme";
+import FFView from "@/src/components/FFView";
+import { Type_Address } from "@/src/types/Address";
 
 type HomeNavigationProps = StackNavigationProp<
   MainStackParamList,
@@ -224,7 +226,13 @@ const HomeScreen = () => {
               elevation: 4,
             }}
           >
-            <FFAvatar size={48} avatar={avatar?.url} />
+            <FFAvatar
+              onPress={() => {
+                navigation.navigate("Profile");
+              }}
+              size={48}
+              avatar={avatar?.url}
+            />
           </View>
         </View>
 
@@ -237,7 +245,7 @@ const HomeScreen = () => {
           }}
         >
           {address?.street && address?.city && address?.nationality ? (
-            <View
+            <FFView
               style={{
                 flexDirection: "row",
                 alignItems: "center",
@@ -247,6 +255,12 @@ const HomeScreen = () => {
                 paddingVertical: 6,
                 borderRadius: 12,
                 alignSelf: "flex-start",
+              }}
+              onPress={() => {
+                navigation.navigate("AddressDetails", {
+                  is_create_type: !address,
+                  addressDetail: address as unknown as Type_Address,
+                });
               }}
             >
               <Ionicons
@@ -264,7 +278,7 @@ const HomeScreen = () => {
               >
                 {address?.street}, {address?.city}
               </FFText>
-            </View>
+            </FFView>
           ) : (
             <FFText style={{ color: colors.grey, fontSize: 13, marginTop: 8 }}>
               Unknown Address
