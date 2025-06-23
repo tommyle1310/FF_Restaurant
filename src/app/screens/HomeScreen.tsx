@@ -22,6 +22,7 @@ import FFModal from "@/src/components/FFModal";
 import { useTheme } from "@/src/hooks/useTheme";
 import FFView from "@/src/components/FFView";
 import { Type_Address } from "@/src/types/Address";
+import { useFChatSocket } from "@/src/hooks/useFChatSocket";
 
 type HomeNavigationProps = StackNavigationProp<
   MainStackParamList,
@@ -32,6 +33,7 @@ const HomeScreen = () => {
   const navigation = useNavigation<HomeNavigationProps>();
   const dispatch = useDispatch();
   const { theme } = useTheme();
+  const { startSupportChat } = useFChatSocket();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
@@ -45,6 +47,15 @@ const HomeScreen = () => {
     topDish: "",
   });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  const handleStartChatWithSupport = () => {
+    // Start a chatbot session and navigate to the chat screen
+    startSupportChat('restaurant_support', 'medium', { userType: 'restaurant_owner' });
+    navigation.navigate('FChat', {
+      type: 'CHATBOT',
+      title: 'Customer Support'
+    });
+  };
 
   const handleToggleAvailability = async () => {
     try {
@@ -171,7 +182,12 @@ const HomeScreen = () => {
       label: "My Wallet",
       onPress: () => navigation.navigate("PaymentMethod"),
     },
-    { id: 6, icon: "bulb", label: "Marketing" },
+    { 
+      id: 6, 
+      icon: "chatbubble-ellipses", 
+      label: "Support Chat",
+      onPress: handleStartChatWithSupport,
+    }, 
   ];
 
   return (

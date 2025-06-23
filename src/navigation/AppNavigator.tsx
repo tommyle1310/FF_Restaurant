@@ -65,7 +65,7 @@ export type MainStackParamList = {
   Promotions: undefined;
   MenuItemForm: { menuItemId: string } | undefined;
   CustomerFeedback: undefined;
-  FChat: { withUserId?: string; type?: "SUPPORT" | "ORDER"; orderId?: string };
+  FChat: { withUserId?: string; type?: "SUPPORT" | "ORDER" | "CHATBOT"; orderId?: string; title?: string };
   SupportCenter: undefined;
   Profile: undefined;
   CreateInquiry: undefined;

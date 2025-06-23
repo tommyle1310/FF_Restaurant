@@ -1,251 +1,108 @@
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Linking,
-  StyleSheet,
-} from "react-native";
-import React, { useEffect, useState } from "react";
-import FFSafeAreaView from "@/src/components/FFSafeAreaView";
-import FFScreenTopSection from "@/src/components/FFScreenTopSection";
-import { StackNavigationProp } from "@react-navigation/stack";
-import { MainStackParamList } from "@/src/navigation/AppNavigator";
-import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
-import FFText from "@/src/components/FFText";
-import axiosInstance from "@/src/utils/axiosConfig";
-import FFSkeleton from "@/src/components/FFSkeleton";
-import { spacing, colors, typography } from "@/src/theme";
-import FFView from "@/src/components/FFView";
-import { useTheme } from "@/src/hooks/useTheme";
-import { useSelector } from "@/src/store/types";
-import { RootState } from "@/src/store/store";
+import React from 'react';
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { MainStackParamList } from '@/src/navigation/AppNavigator';
+import { Ionicons } from '@expo/vector-icons';
+import FFSafeAreaView from '@/src/components/FFSafeAreaView';
+import FFScreenTopSection from '@/src/components/FFScreenTopSection';
+import FFText from '@/src/components/FFText';
+import FFView from '@/src/components/FFView';
+import { colors, spacing } from '@/src/theme';
+import { useSelector } from '@/src/store/types';
+import { RootState } from '@/src/store/store';
+import { useFChatSocket } from '@/src/hooks/useFChatSocket';
 
-type SupportCenterNavigationProp = StackNavigationProp<
-  MainStackParamList,
-  "BottomTabs"
->;
-
-export enum FAQType {
-  GENERAL = "GENERAL",
-  ACCOUNT = "ACCOUNT",
-  PAYMENT = "PAYMENT",
-  SERVICE = "SERVICE",
-}
-
-type FAQContentBlock =
-  | { type: "text"; value: string }
-  | { type: "image"; value: { url: string; key: string } }
-  | { type: "image_row"; value: { url: string; key: string }[] };
-
-type FAQ = {
-  id: string;
-  question: string;
-  answer: FAQContentBlock[];
-  status: string;
-  type: FAQType;
-  created_at: string;
-  updated_at: string | null;
-};
+type SupportCenterNavigationProp = StackNavigationProp<MainStackParamList, 'SupportCenter'>;
 
 const SupportCenterScreen = () => {
   const navigation = useNavigation<SupportCenterNavigationProp>();
-  const [activeTab, setActiveTab] = useState<"FAQ" | "Contact Us">("FAQ");
-  const [faqs, setFaqs] = useState<FAQ[]>([]);
-  const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
-  const { theme } = useTheme();
-  // const [orders, setOrders] = useState<OrderTracking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { id } = useSelector((state: RootState) => state.auth);
+  const { id: restaurantId } = useSelector((state: RootState) => state.auth);
+  const { startSupportChat } = useFChatSocket();
 
-  const fetchFAQs = async () => {
-    setIsLoadingFAQ(true);
-    try {
-      const response = await axiosInstance.get("/faqs");
-      const { EC, EM, data } = response.data;
-      if (EC === 0) {
-        setFaqs(data);
-        console.log("FAQs fetched:", data);
-      } else {
-        console.log("Error fetching FAQs:", EM);
-      }
-    } catch (error) {
-      console.log("Fetch FAQs error:", error);
-    } finally {
-      setIsLoadingFAQ(false);
-    }
+  const handleStartChatWithSupport = () => {
+    // Start a chatbot session and navigate to the chat screen
+    startSupportChat('restaurant_support', 'medium', { userType: 'restaurant_owner' });
+    navigation.navigate('FChat', {
+      type: 'CHATBOT',
+      title: 'Customer Support'
+    });
   };
 
-  const handleFilterFAQ = async (type: FAQType) => {
-    setIsLoadingFAQ(true);
-    try {
-      const response = await axiosInstance.get(`/faqs/type/${type}`);
-      const { EC, EM, data } = response.data;
-      if (EC === 0) {
-        setFaqs(data);
-        console.log(`FAQs of type ${type} fetched:`, data);
-      } else {
-        console.log("Error fetching FAQs:", EM);
-      }
-    } catch (error) {
-      console.log(`Fetch FAQs of type ${type} error:`, error);
-    } finally {
-      setIsLoadingFAQ(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFAQs();
-  }, []);
-
-  useEffect(() => {
-    fetchOrders();
-  }, [id]);
-
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      const res = await axiosInstance.get(`/customers/orders/${id}`);
-      const allOrders = res.data.data;
-      // const lastThreeOrders = allOrders.slice(-Math.max(3, allOrders.length));
-      // setOrders(lastThreeOrders);
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-  // console.log("check orders", orders[0]?.order_items?.[0]?.menu_item?.avatar);
-
-  const contactOptions = [
+  const supportOptions = [
     {
-      title: "Chat with customer care representative",
-      icon: "headset",
-      onPress: () => navigation.navigate("FChat", { type: "SUPPORT" }),
+      id: 'chat',
+      title: 'Chat with Support',
+      description: 'Get help from our support team via chat',
+      icon: 'chatbubble-ellipses-outline',
+      onPress: handleStartChatWithSupport,
     },
     {
-      title: "Submit a Request",
-      icon: "document-text-outline",
-      onPress: () => navigation.navigate("CreateInquiry"),
+      id: 'inquiry',
+      title: 'Submit an Inquiry',
+      description: 'Create a new support ticket',
+      icon: 'create-outline',
+      onPress: () => navigation.navigate('CreateInquiry'),
     },
-    { title: "WhatsApp", icon: "logo-whatsapp" },
-    { title: "Website", icon: "globe" },
-    { title: "Facebook", icon: "logo-facebook" },
-    { title: "Twitter", icon: "logo-twitter" },
-    { title: "Instagram", icon: "logo-instagram" },
+    {
+      id: 'faq',
+      title: 'Frequently Asked Questions',
+      description: 'Find answers to common questions',
+      icon: 'help-circle-outline',
+      onPress: () => {},
+    },
   ];
-
-  const FAQSection = () => (
-    <ScrollView style={styles.faqScrollView}>
-      {faqs.map((item, index) => (
-        <TouchableOpacity key={index} style={styles.faqItem}>
-          <View style={styles.faqHeader}>
-            <FFText style={styles.faqQuestion}>{item.question}</FFText>
-            <Ionicons name="chevron-down" size={20} color={colors.text} />
-          </View>
-          {item.answer[0] &&
-            (isLoadingFAQ ? (
-              <View style={styles.skeletonContainer}>
-                <FFSkeleton height={80} />
-                <FFSkeleton height={80} />
-                <FFSkeleton height={80} />
-              </View>
-            ) : (
-              <>
-                {item.answer[0].type === "text" && (
-                  <FFText
-                    colorLight={colors.textSecondary}
-                    colorDark={colors.textSecondary}
-                    fontSize="sm"
-                    style={styles.faqAnswer}
-                  >
-                    {item.answer[0].value.replace(/\[(.*?)\]\((.*?)\)/g, "$1")}
-                  </FFText>
-                )}
-              </>
-            ))}
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-
-  const ContactSection = () => (
-    <ScrollView style={styles.contactScrollView}>
-      {contactOptions.map((option, index) => (
-        <TouchableOpacity
-          key={index}
-          onPress={option.onPress}
-          style={styles.contactItem}
-        >
-          <Ionicons
-            name={option.icon as any}
-            size={24}
-            color={theme === "light" ? colors.text : colors.textSecondary}
-          />
-          <FFText fontSize="sm" style={styles.contactText}>
-            {option.title}
-          </FFText>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
 
   return (
     <FFSafeAreaView style={styles.container}>
-      <FFScreenTopSection title="Support Center" navigation={navigation} />
+      <FFScreenTopSection
+        title="Support Center"
+        navigation={navigation}
+      />
+      
+      <ScrollView style={styles.scrollView}>
+        <FFView style={styles.header}>
+          <FFText style={styles.headerTitle}>How can we help you?</FFText>
+          <FFText style={styles.headerSubtitle}>
+            Choose an option below to get assistance
+          </FFText>
+        </FFView>
 
-      <View style={styles.content}>
-        {/* Tab Buttons */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "FAQ" && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab("FAQ")}
-          >
-            <FFText style={styles.tabText}>FAQ</FFText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "Contact Us" && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab("Contact Us")}
-          >
-            <FFText style={styles.tabText}>Contact Us</FFText>
-          </TouchableOpacity>
-        </View>
+        <FFView style={styles.optionsContainer}>
+          {supportOptions.map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              style={styles.optionCard}
+              onPress={option.onPress}
+            >
+              <View style={styles.iconContainer}>
+                <Ionicons name={option.icon as any} size={24} color={colors.primary} />
+              </View>
+              <View style={styles.optionContent}>
+                <FFText style={styles.optionTitle}>{option.title}</FFText>
+                <FFText style={styles.optionDescription}>{option.description}</FFText>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          ))}
+        </FFView>
 
-        <View style={styles.mainContent}>
-          {/* Category Pills */}
-          {activeTab === "FAQ" && (
-            <View style={styles.categoryContainer}>
-              {[
-                { value: FAQType.GENERAL, label: "General" },
-                { value: FAQType.ACCOUNT, label: "Account" },
-                { value: FAQType.PAYMENT, label: "Payment" },
-                { value: FAQType.SERVICE, label: "Service" },
-              ].map((category, index) => (
-                <FFView
-                  onPress={() => handleFilterFAQ(category.value)}
-                  key={index}
-                  style={styles.categoryPill}
-                >
-                  <FFText fontSize="sm">{category.label}</FFText>
-                </FFView>
-              ))}
-            </View>
-          )}
-
-          {/* Content Section */}
-          <View style={styles.contentSection}>
-            {activeTab === "FAQ" ? <FAQSection /> : <ContactSection />}
+        <FFView style={styles.contactInfo}>
+          <FFText style={styles.contactTitle}>Contact Information</FFText>
+          <View style={styles.contactItem}>
+            <Ionicons name="call-outline" size={20} color={colors.textSecondary} />
+            <FFText style={styles.contactText}>+1 (800) 123-4567</FFText>
           </View>
-        </View>
-      </View>
+          <View style={styles.contactItem}>
+            <Ionicons name="mail-outline" size={20} color={colors.textSecondary} />
+            <FFText style={styles.contactText}>support@ffrestaurant.com</FFText>
+          </View>
+          <View style={styles.contactItem}>
+            <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
+            <FFText style={styles.contactText}>Available 24/7</FFText>
+          </View>
+        </FFView>
+      </ScrollView>
     </FFSafeAreaView>
   );
 };
@@ -253,83 +110,82 @@ const SupportCenterScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  content: {
-    flex: 1,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-  },
-  activeTabButton: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.text,
-  },
-  tabText: {
-    textAlign: "center",
-  },
-  mainContent: {
-    flex: 1,
-  },
-  categoryContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: spacing.md,
-  },
-  categoryPill: {
-    elevation: 3,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    height: spacing.xl,
-    borderRadius: 9999,
     backgroundColor: colors.background,
   },
-  contentSection: {
+  scrollView: {
     flex: 1,
   },
-  faqScrollView: {
-    paddingHorizontal: spacing.md,
+  header: {
+    padding: spacing.lg,
+    marginBottom: spacing.md,
   },
-  faqItem: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: spacing.md,
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: spacing.sm,
   },
-  faqHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  headerSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
-  faqQuestion: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.medium,
+  optionsContainer: {
+    padding: spacing.md,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  optionContent: {
     flex: 1,
   },
-  faqAnswer: {
-    marginTop: spacing.sm,
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
   },
-  skeletonContainer: {
-    gap: spacing.sm,
+  optionDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  contactScrollView: {
-    paddingHorizontal: spacing.md,
+  contactInfo: {
+    padding: spacing.lg,
+    marginTop: spacing.md,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 12,
+    margin: spacing.md,
+  },
+  contactTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: spacing.md,
   },
   contactItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   contactText: {
-    marginLeft: spacing.sm,
+    marginLeft: spacing.md,
+    fontSize: 16,
+    color: colors.textSecondary,
   },
 });
 

@@ -2,10 +2,12 @@
 import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import authReducer from "./authSlice"; // Replace with the correct path to your auth slice
 import restaurantOrderTrackingReducer from "./restaurantOrderTrackingSlice"; // Replace with the correct path to your auth slice
+import chatReducer, { loadChatFromStorage } from './chatSlice';
 
 const rootReducer = combineReducers({
   auth: authReducer,
   restaurantOrderTracking: restaurantOrderTrackingReducer,
+  chat: chatReducer,
 });
 
 const appReducer = (state: any, action: any) => {
@@ -17,9 +19,21 @@ const appReducer = (state: any, action: any) => {
   return rootReducer(state, action);
 };
 
-const store = configureStore({
+export const store = configureStore({
   reducer: appReducer,
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        // Ignore these action types
+        ignoredActions: ['chat/addRoom', 'chat/addMessage', 'chat/setMessages'],
+        // Ignore these paths in the state
+        ignoredPaths: ['chat.rooms', 'chat.messages'],
+      },
+    }),
 });
+
+// Load chat data from storage on app startup
+store.dispatch(loadChatFromStorage());
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
