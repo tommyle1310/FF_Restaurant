@@ -1,11 +1,11 @@
 export const IP_ADDRESS = {
-  HOME_1: "192.168.1.8",
+  HOME_1: "192.168.1.16",
   NEAR: "192.168.1.133",
   UOG: "10.25.35.178",
   LEEVU: "192.168.158.79",
 };
 
-export const BACKEND_URL = `http://${IP_ADDRESS.NEAR}:1310`;
+export const BACKEND_URL = `http://${IP_ADDRESS.HOME_1}:1310`;
 export const CHAT_SOCKET_URL = `${BACKEND_URL}/chat`;
 export const DELIVERY_FEE = 3;
 export const SERVICE_FEE = 1;

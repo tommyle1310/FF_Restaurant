@@ -4,19 +4,24 @@ import { useTheme } from "../hooks/useTheme";
 import FFButton from "./FFButton";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CHART_HEIGHT = 200; // Chiều cao cố định cho biểu đồ
-const BAR_WIDTH = 10; // Độ rộng của mỗi cột
-const BAR_SPACING = 20; // Khoảng cách giữa các cột
-const Y_AXIS_WIDTH = 40; // Chiều rộng của trục Y
+const CHART_HEIGHT = 200;
+const BAR_WIDTH = 12;
+const BAR_SPACING = 25;
+const Y_AXIS_WIDTH = 50;
+const PADDING_TOP = 20;
+const PADDING_BOTTOM = 30;
+const LABEL_HEIGHT = 20;
 
 interface FFBarChartProps {
-  data: number[]; // Mảng dữ liệu
-  labels?: string[]; // Nhãn cho trục x
+  data: number[];
+  labels?: string[];
+  unit?: string;
 }
 
 const FFBarChart: React.FC<FFBarChartProps> = ({
   data,
   labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+  unit = "",
 }) => {
   const { theme } = useTheme();
   const currentTheme = {
@@ -24,15 +29,14 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
     dark: { background: "#1a1a1a", text: "#ffffff", barColor: "#8BC34A" },
   }[theme as "light" | "dark"];
 
-  // Đảm bảo số lượng data và labels khớp nhau
+  // Ensure data and labels match
   const validData = data.slice(0, labels.length);
-  const validLabels = labels.slice(0, data.length); // Chỉ lấy số nhãn tương ứng với data
+  const validLabels = labels.slice(0, data.length);
 
-  // Giá trị max để scale chiều cao cột, dựa trên dữ liệu thực tế
-  const maxValue = Math.max(...validData, 1); // Đảm bảo maxValue ít nhất là 1 để tránh chia cho 0
+  // Calculate max value for scaling
+  const maxValue = Math.max(...validData, 1);
 
-  // Các mốc trên trục Y, tự động tính dựa trên maxValue
-  const yAxisStep = maxValue / 4; // Chia trục Y thành 5 mức (0, 25%, 50%, 75%, 100%)
+  // Calculate Y-axis values
   const yAxisValues = [
     maxValue,
     maxValue * 0.75,
@@ -41,30 +45,34 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
     0,
   ];
 
+  // Calculate chart dimensions
+  const chartAreaHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM - LABEL_HEIGHT;
+  const totalBarWidth = validData.length * (BAR_WIDTH + BAR_SPACING) - BAR_SPACING;
+  const chartWidth = Math.max(totalBarWidth + 40, SCREEN_WIDTH - 100);
+
+  // Calculate y-position for a given value
+  const getBarHeight = (value: number): number => {
+    if (value === 0) return 2; // Minimum height for visibility
+    return (value / maxValue) * chartAreaHeight;
+  };
+
   return (
     <View
-      style={{
-        borderRadius: 12,
-        gap: 16,
-        backgroundColor: currentTheme.background,
-        elevation: 3,
-        justifyContent: "center",
-        width: SCREEN_WIDTH - 32,
-        marginHorizontal: "auto",
-        padding: 10,
-        paddingTop: 32,
-      }}
+      style={[
+        styles.wrapper,
+        { backgroundColor: currentTheme.background }
+      ]}
     >
       <View style={styles.container}>
-        {/* Trục Y (giá trị) */}
-        <View style={styles.yAxis}>
+        {/* Y-axis */}
+        <View style={[styles.yAxis, { height: CHART_HEIGHT - LABEL_HEIGHT }]}>
           {yAxisValues.map((value, index) => (
             <Text
               key={index}
               style={[styles.yLabel, { color: currentTheme.text }]}
               numberOfLines={1}
             >
-              {value.toFixed(2)} {/* Hiển thị 2 chữ số thập phân */}
+              {value.toFixed(0)} {unit}
             </Text>
           ))}
         </View>
@@ -75,28 +83,50 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          <View style={styles.chartContainer}>
-            {validData.map((value, index) => {
-              // Tính chiều cao cột dựa trên giá trị và tỷ lệ với CHART_HEIGHT
-              const barHeight = (value / maxValue) * (CHART_HEIGHT - 20); // Trừ 20 để chừa chỗ cho nhãn trục X
-              return (
+          <View style={[styles.chartArea, { width: chartWidth }]}>
+            {/* Grid lines */}
+            {yAxisValues.map((value, index) => (
+              <View
+                key={`grid-${index}`}
+                style={[
+                  styles.gridLine,
+                  {
+                    bottom: (value / maxValue) * chartAreaHeight + LABEL_HEIGHT,
+                    width: chartWidth - Y_AXIS_WIDTH,
+                  }
+                ]}
+              />
+            ))}
+
+            {/* Bars and labels */}
+            <View style={[styles.chartContainer, { height: chartAreaHeight }]}>
+              {validData.map((value, index) => (
                 <View key={index} style={styles.barWrapper}>
                   <View
                     style={[
                       styles.bar,
                       {
-                        height: barHeight < 1 ? 1 : barHeight, // Đảm bảo cột tối thiểu 1px để thấy được
+                        height: getBarHeight(value) ,
                         backgroundColor: currentTheme.barColor,
                         width: BAR_WIDTH,
                       },
                     ]}
                   />
-                  <Text style={[styles.xLabel, { color: currentTheme.text }]}>
+                  <Text 
+                    style={[
+                      styles.xLabel, 
+                      { 
+                        color: currentTheme.text,
+                        position: 'absolute',
+                        bottom: -LABEL_HEIGHT - 10,
+                      }
+                    ]}
+                  >
                     {validLabels[index]}
                   </Text>
                 </View>
-              );
-            })}
+              ))}
+            </View>
           </View>
         </ScrollView>
       </View>
@@ -108,15 +138,23 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
 };
 
 const styles = StyleSheet.create({
+  wrapper: {
+    borderRadius: 12,
+    gap: 16,
+    elevation: 3,
+    justifyContent: "center",
+    width: "100%",
+    padding: 16,
+    paddingTop: 32,
+  },
   container: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   yAxis: {
     justifyContent: "space-between",
-    height: CHART_HEIGHT,
     width: Y_AXIS_WIDTH,
-    marginRight: 10,
+    marginRight: 15,
   },
   yLabel: {
     fontSize: 12,
@@ -126,24 +164,37 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
   },
+  chartArea: {
+    position: 'relative',
+    height: CHART_HEIGHT,
+  },
+  gridLine: {
+    position: 'absolute',
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    left: Y_AXIS_WIDTH,
+  },
   chartContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    height: CHART_HEIGHT,
     alignItems: "flex-end",
     paddingRight: 20,
+    position: 'absolute',
+    bottom: LABEL_HEIGHT + 5,
+    left: Y_AXIS_WIDTH,
+    right: 0,
   },
   barWrapper: {
     alignItems: "center",
     marginHorizontal: BAR_SPACING / 2,
+    position: 'relative',
   },
   bar: {
-    borderRadius: 4,
+    borderRadius: 6,
   },
   xLabel: {
     fontSize: 12,
-    marginTop: 5,
     textAlign: "center",
+    width: BAR_WIDTH + BAR_SPACING,
   },
 });
 
