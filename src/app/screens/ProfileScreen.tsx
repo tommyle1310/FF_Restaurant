@@ -108,16 +108,16 @@ const ProfileScreen = () => {
       let lastNameState = last_name || (user && user.last_name) || "";
       let emailState = user
         ? user.email
-        : contact_email.find((item) => item.is_default)?.email ||
+        : contact_email?.find((item) => item.is_default)?.email ||
           emailRedux ||
           "";
       let phoneState = user
         ? user.phone
-        : contact_phone.find((item) => item.is_default)?.number || "";
+        : contact_phone?.find((item) => item.is_default)?.number || "";
 
       console.log(
         "check here",
-        contact_email.find((item) => item.is_default)?.email
+        contact_email?.find((item) => item.is_default)?.email
       );
 
       setEmail(emailState);
@@ -205,7 +205,7 @@ const ProfileScreen = () => {
             <View style={styles.section}>
               <View style={styles.reviewsHeader}>
                 <FFText>Reviews</FFText>
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate("RatingsReviews")}>
                   <FFText fontWeight="400" style={styles.seeAllText}>
                     See All
                   </FFText>
@@ -214,7 +214,7 @@ const ProfileScreen = () => {
               <FlatList
                 horizontal
                 style={styles.reviewsList}
-                data={reviewsData?.reviews || []}
+                data={reviewsData?.reviews?.slice(0, 3) || []}
                 renderItem={({ item }) => (
                   <View style={styles.reviewCard}>
                     <View style={styles.reviewerInfo}>

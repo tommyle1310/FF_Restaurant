@@ -311,7 +311,9 @@ const OrderCard = ({
 
         <FFView style={styles.itemsList}>
           {item.order_items.map((orderItem, index) => (
-            <FFText key={index} style={styles.orderItem}>
+          <View key={index} style={{alignItems: 'center', gap: spacing.sm, flexDirection: 'row'}}>
+            <FFAvatar size={40} avatar={orderItem?.menu_item?.avatar?.url} />
+              <FFText  style={styles.orderItem}>
               {orderItem.quantity} x {orderItem.name}
               {orderItem.variant_id && (
                 <FFText style={styles.variantText}>
@@ -320,6 +322,7 @@ const OrderCard = ({
                 </FFText>
               )}
             </FFText>
+          </View>
           ))}
         </FFView>
       </View>
@@ -555,6 +558,7 @@ export default function OrderScreen() {
           customer_note: order.customer_note || "",
           order_items: order.order_items.map((item) => ({
             item_id: item.item_id,
+            menu_item: item.menu_item,
             variant_id: item.variant_id || "",
             variant_name: item.menu_item_variant?.variant || "",
             name: item.menu_item?.name || item.name || "Unknown Item",

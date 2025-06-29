@@ -43,6 +43,7 @@ import SupportCenterScreen from "../app/screens/SupportCenterScreen";
 import FChatScreen from "../app/screens/FChatScreen";
 import CreateInquiryScreen from "../app/screens/CreateInquiryScreen";
 import StatisticsScreen from "../app/screens/StatisticsScreen";
+import RatingsReviewsScreen from "../app/screens/RatingsReviewsScreen";
 import { spacing, typography } from "../theme";
 import axiosInstance from "../utils/axiosConfig";
 import FFInputControl from "../components/FFInputControl";
@@ -73,6 +74,7 @@ export type MainStackParamList = {
   PaymentMethod: undefined;
   AddressDetails?: { addressDetail?: Type_Address; is_create_type?: boolean };
   Statistics: undefined;
+  RatingsReviews: undefined;
 };
 
 export type BottomTabParamList = {
@@ -377,6 +379,11 @@ const MainStackScreen = () => {
           options={{ headerShown: false }}
           name="FChat"
           component={FChatScreen}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="RatingsReviews"
+          component={RatingsReviewsScreen}
         />
       </MainStack.Navigator>
       <FFToast

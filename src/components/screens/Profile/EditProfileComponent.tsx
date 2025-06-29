@@ -9,6 +9,7 @@ import React, { useEffect, useState } from "react";
 import FFAvatar from "../../FFAvatar";
 import FFInputControl from "../../FFInputControl";
 import FFDropdown from "../../FFDropdown";
+import FFTimePicker from "../../FFTimePicker";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { useDispatch, useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
@@ -514,35 +515,35 @@ const EditProfileComponent = () => {
                 </FFText>
                 <View style={styles.timeInputsContainer}>
                   <View style={styles.timeInput}>
-                    <FFText>From:</FFText>
-                    <FFInputControl
-                      value={String(hours.from)}
-                      setValue={(value) => {
+                    <FFTimePicker
+                      label="From"
+                      value={hours.from}
+                      onChange={(value) => {
                         const newHours = { ...openingHours };
                         newHours[day as keyof OpeningHours] = {
                           ...hours,
-                          from: Number(value) || 0,
+                          from: value,
                         };
                         setOpeningHours(newHours);
                       }}
-                      placeholder="0900"
-                      error=""
+                      labelStyle={styles.timePickerLabel}
+                      inputStyle={styles.timePickerInput}
                     />
                   </View>
                   <View style={styles.timeInput}>
-                    <FFText>To:</FFText>
-                    <FFInputControl
-                      value={String(hours.to)}
-                      setValue={(value) => {
+                    <FFTimePicker
+                      label="To"
+                      value={hours.to}
+                      onChange={(value) => {
                         const newHours = { ...openingHours };
                         newHours[day as keyof OpeningHours] = {
                           ...hours,
-                          to: Number(value) || 0,
+                          to: value,
                         };
                         setOpeningHours(newHours);
                       }}
-                      placeholder="2200"
-                      error=""
+                      labelStyle={styles.timePickerLabel}
+                      inputStyle={styles.timePickerInput}
                     />
                   </View>
                 </View>
@@ -663,6 +664,17 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "column",
     gap: spacing.xs,
+  },
+  timePickerLabel: {
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  timePickerInput: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
 });
 

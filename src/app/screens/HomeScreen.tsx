@@ -169,7 +169,7 @@ const HomeScreen = () => {
       onPress: () => navigation.navigate("Statistics"),
     },
     { id: 2, icon: "time", label: "History" },
-    { id: 3, icon: "star", label: "Reviews" },
+    { id: 3, icon: "star", label: "Reviews", onPress: () => navigation.navigate("RatingsReviews") },
     {
       id: 4,
       icon: "pricetag",
