@@ -1,5 +1,5 @@
 // src/navigation/AppNavigator.tsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   createStackNavigator,
   StackNavigationProp,
@@ -122,49 +122,86 @@ const BottomTabs = () => {
 };
 
 const MainStackScreen = () => {
-  const [selectedLocation, setSelectedLocation] = useState({
+  const { restaurant_id, id: restaurantUserId, accessToken } = useSelector(
+    (state: RootState) => state.auth
+  );
+  const [selectedLocation] = useState({
     lat: 10.826411,
     lng: 106.617353,
   });
   const [reason, setReason] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-
-  const {
-    restaurant_id,
-    id: restaurantUserId,
-    accessToken,
-  } = useSelector((state: RootState) => state.auth);
   const { expoPushToken } = usePushNotifications();
-  const [latestOrder, setLatestOrder] =
-    useState<Type_PushNotification_Order | null>(null);
-  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
-    useState(false);
+  const [latestOrder, setLatestOrder] = useState<Type_PushNotification_Order | null>(null);
+  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] = useState(false);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
   const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPushTokenReady, setIsPushTokenReady] = useState(false);
+  const lastOrderIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (expoPushToken?.data) {
+      setIsPushTokenReady(true);
+      console.log("Push token ready:", expoPushToken.data);
+    } else {
+      setIsPushTokenReady(false);
+      console.log("Push token not ready:", expoPushToken);
+    }
+  }, [expoPushToken]);
 
   const sendPushNotification = useCallback(
-    (order: Type_PushNotification_Order, expoPushToken?: { data: string }) => {
-      console.log("Sending push notification for order:", order.orderId);
-      if (expoPushToken) {
-        console.log("Push notification payload:", {
+    (order: Type_PushNotification_Order) => {
+      if (lastOrderIdRef.current === order.orderId) {
+        console.log("Duplicate order detected, skipping notification:", order.orderId);
+        return;
+      }
+      lastOrderIdRef.current = order.orderId;
+
+      console.log("check expoPushToken before sendpushnotification", {
+        expoPushToken,
+        data: expoPushToken?.data,
+        isPushTokenReady,
+      });
+
+      if (!expoPushToken?.data || !isPushTokenReady) {
+        console.warn("Cannot send push notification: expoPushToken is undefined or not ready");
+        return;
+      }
+
+      console.log("Sending push notification:", {
+        order,
+        expoPushToken: expoPushToken.data,
+      });
+
+      fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           to: expoPushToken.data,
-          title: `Order #${order.orderId.slice(-8)}`,
-          body: `Status: ${order.status}`,
-        });
-      }
-      if (order.status === "PENDING") {
-        setIsShowIncomingOrderToast(true);
-      }
+          sound: "default",
+          title: "New Order Received",
+          body: `Order #${order.orderId} - Status: ${order.status}`,
+          data: { order },
+        }),
+      })
+        .then((response) => response.json())
+        .then((data) => console.log("Push notification sent:", data))
+        .catch((error) => console.error("Error sending push notification:", error));
     },
-    []
+    [expoPushToken, isPushTokenReady]
   );
 
   const { socket, latestOrder: socketLatestOrder } = useSocket(
-    restaurant_id || "",
+    restaurant_id && isPushTokenReady ? restaurant_id : "",
     setOrders,
-    sendPushNotification
+    isPushTokenReady ? sendPushNotification : (order) => {
+      console.log("Push token not ready, skipping notification for order:", order.orderId);
+    }
   );
 
   useEffect(() => {
@@ -177,6 +214,7 @@ const MainStackScreen = () => {
           prev.updated_at !== socketLatestOrder.updated_at
         ) {
           console.log("Updating latestOrder:", socketLatestOrder.orderId);
+          setIsShowIncomingOrderToast(true);
           return socketLatestOrder;
         }
         return prev;
@@ -207,11 +245,7 @@ const MainStackScreen = () => {
   }, [latestOrder]);
 
   const handleSubmitReject = useCallback(async () => {
-    console.log("Submitting reject with state:", {
-      reason,
-      title,
-      description,
-    });
+    console.log("Submitting reject with state:", { reason, title, description });
 
     if (!latestOrder || !restaurant_id || !restaurantUserId) {
       console.error("Missing required data for reject order");
@@ -243,7 +277,6 @@ const MainStackScreen = () => {
       );
       console.log("Reject order response:", response.data);
       if (response.data.EC === 0) {
-        setIsLoading(false);
         setIsRejectModalVisible(false);
         setIsShowIncomingOrderToast(false);
         setReason("");
@@ -256,16 +289,8 @@ const MainStackScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    latestOrder,
-    restaurant_id,
-    restaurantUserId,
-    reason,
-    title,
-    description,
-  ]);
+  }, [latestOrder, restaurant_id, restaurantUserId, reason, title, description]);
 
-  // Handle automatic rejection when toast times out
   const handleToastTimeout = useCallback(async () => {
     console.log("Toast timeout - auto rejecting order");
 
@@ -274,7 +299,6 @@ const MainStackScreen = () => {
       return;
     }
 
-    // Set default values for auto rejection
     const defaultReason = "No Response";
     const defaultTitle = "Restaurant Not Responding";
     const defaultDescription =
@@ -290,25 +314,18 @@ const MainStackScreen = () => {
 
     try {
       console.log("Auto rejecting order with:", requestBody);
-
-      const response = await fetch(
-        `${BACKEND_URL}/orders/${latestOrder.orderId}/cancel`,
+      const response = await axiosInstance.post(
+        `/orders/${latestOrder.orderId}/cancel`,
+        requestBody,
         {
-          method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify(requestBody),
         }
       );
-
-      if (response.ok) {
-        console.log("Order auto-rejected successfully");
-        // Close the toast
+      console.log("Auto reject order response:", response.data);
+      if (response.data.EC === 0) {
         setIsShowIncomingOrderToast(false);
-      } else {
-        console.error("Failed to auto-reject order:", response.status);
       }
     } catch (error) {
       console.error("Error auto-rejecting order:", error);

@@ -93,7 +93,6 @@ export const useSocket = (
   };
 
   const attemptReconnection = useCallback(() => {
-    // Prevent multiple simultaneous reconnection attempts
     if (isReconnectingRef.current) {
       console.log("Reconnection already in progress, skipping...");
       return;
@@ -134,7 +133,7 @@ export const useSocket = (
       // Socket events are set up in the main useEffect
       isReconnectingRef.current = false;
     }, delay);
-  }, []);
+  }, [accessToken]);
 
   const createSocketConnection = useCallback(() => {
     if (!accessToken) {
@@ -265,25 +264,7 @@ export const useSocket = (
     const eventKey = `${data.orderId ?? data.id ?? "unknown"}`;
     const lastUpdatedAt = processedEventIds.current.get(eventKey);
 
-    // Enhanced duplicate prevention for specific cases
     if (lastUpdatedAt && lastUpdatedAt >= (data.updated_at ?? Date.now())) {
-      // Special case: prevent duplicate incomingOrderForRestaurant and notifyOrderStatus
-      // when they have same orderId and status === PENDING
-      if (
-        (event === "incomingOrderForRestaurant" ||
-          event === "notifyOrderStatus") &&
-        data.status === "PENDING"
-      ) {
-        console.log(
-          `Skipping duplicate ${event} with PENDING status for order:`,
-          eventKey
-        );
-        isProcessingRef.current = false;
-        processEventQueue();
-        return;
-      }
-
-      // General duplicate check for same timestamp
       console.log(
         `Skipping duplicate event (${event}) - same or older timestamp:`,
         id
@@ -303,7 +284,6 @@ export const useSocket = (
         console.log("Existing orders in Redux:", existingOrders.length);
         console.log("Looking for orderId:", data.orderId ?? data.id);
 
-        // For status updates, find existing order from Redux and preserve all data
         const existingOrder = existingOrders.find(
           (o) => o.orderId === (data.orderId ?? data.id)
         );
@@ -316,20 +296,17 @@ export const useSocket = (
           console.log("- Current status:", existingOrder.status);
           console.log("- New status:", data.status);
 
-          // Preserve ALL existing data, only update specific fields from notifyOrderStatus
           order = {
-            ...existingOrder, // Keep ALL existing data
+            ...existingOrder,
             status: data.status ?? existingOrder.status,
             tracking_info: data.tracking_info ?? existingOrder.tracking_info,
             updated_at: data.updated_at ?? Date.now(),
-            // Preserve or merge driverDetails if provided
             ...(data.driverDetails && {
               driverDetails: {
-                ...existingOrder.driverDetails, // Keep existing driver data
-                ...data.driverDetails, // Merge new driver data
+                ...existingOrder.driverDetails,
+                ...data.driverDetails,
               },
             }),
-            // Update driver_id if provided
             ...(data.driver_id && { driver_id: data.driver_id }),
           };
 
@@ -347,7 +324,6 @@ export const useSocket = (
             "Available order IDs in Redux:",
             existingOrders.map((o) => o.orderId)
           );
-          // DISABLED: Don't create fallback order for notifyOrderStatus - this causes variant_name loss
           console.log(
             "❌ SKIPPING: No existing order found for notifyOrderStatus - cannot update"
           );
@@ -357,7 +333,6 @@ export const useSocket = (
         }
         console.log("=== END NOTIFY ORDER STATUS DEBUG ===");
       } else {
-        // For new orders (incomingOrderForRestaurant), build complete order
         console.log("=== INCOMING ORDER DEBUG ===");
         order = buildPushNotificationOrder(data);
         console.log("Built new order for incoming order");
@@ -396,6 +371,7 @@ export const useSocket = (
           });
         }
         if (sendPushNotification) {
+          console.log("Calling sendPushNotification for completed order:", order.orderId);
           sendPushNotification(order);
         }
       } else {
@@ -413,6 +389,7 @@ export const useSocket = (
         }
 
         if (sendPushNotification) {
+          console.log("Calling sendPushNotification for new order:", order.orderId);
           sendPushNotification(order);
         }
       }
@@ -426,20 +403,16 @@ export const useSocket = (
     dispatch,
     setOrders,
     sendPushNotification,
-    latestOrder,
-    areOrdersEqual,
+    existingOrders,
     buildPushNotificationOrder,
   ]);
 
-  // Removed old complex setupSocketEvents - using simple handlers now
-
   useEffect(() => {
-    if (!accessToken) {
-      console.log("No access token available");
+    if (!accessToken || !restaurantId) {
+      console.log("No access token or restaurantId available");
       return;
     }
 
-    // Use global socket to prevent multiple connections
     if (globalSocket && globalSocket.connected) {
       console.log("Using existing socket connection:", globalSocket.id);
       setSocket(globalSocket);
@@ -453,7 +426,7 @@ export const useSocket = (
     }
 
     globalSocketConnecting = true;
-    console.log("Creating simple socket connection...");
+    console.log("Creating new socket connection for restaurant:", restaurantId);
 
     const socketInstance = io(`${BACKEND_URL}/restaurant`, {
       transports: ["websocket", "polling"],
@@ -469,12 +442,13 @@ export const useSocket = (
     });
 
     globalSocket = socketInstance;
+    setSocket(socketInstance);
 
     socketInstance.on("connect", () => {
       console.log("✅ Connected to restaurant server, ID:", socketInstance.id);
       globalSocketConnecting = false;
-      setSocket(socketInstance);
       setIsConnected(true);
+      reconnectAttemptsRef.current = 0; // Reset reconnect attempts
     });
 
     socketInstance.on("disconnect", (reason) => {
@@ -483,17 +457,18 @@ export const useSocket = (
       globalSocketConnecting = false;
       setSocket(null);
       setIsConnected(false);
+      attemptReconnection();
     });
 
     socketInstance.on("connect_error", (error) => {
       console.error("❌ Connection error:", error);
+      globalSocketConnecting = false;
+      attemptReconnection();
     });
 
-    // Simple event handlers without complex queue logic
     socketInstance.on("incomingOrderForRestaurant", async (response) => {
       console.log("📥 New order received:", response.orderId || response.id);
 
-      // Check if we just logged out - if so, ignore socket events
       const justLoggedOut = await AsyncStorage.getItem("@just_logged_out");
       if (justLoggedOut === "true") {
         console.log("🚫 Ignoring socket order - just logged out");
@@ -515,6 +490,7 @@ export const useSocket = (
       }
 
       if (sendPushNotification) {
+        console.log("Calling sendPushNotification for incoming order:", order.orderId);
         sendPushNotification(order);
       }
     });
@@ -527,17 +503,13 @@ export const useSocket = (
         response.status
       );
 
-      // Check if we just logged out - if so, ignore socket events
       const justLoggedOut = await AsyncStorage.getItem("@just_logged_out");
       if (justLoggedOut === "true") {
         console.log("🚫 Ignoring socket status update - just logged out");
         return;
       }
 
-      // Use ref to get latest orders (not stale closure)
       const currentOrders = latestOrdersRef.current;
-
-      // Find existing order and preserve its data
       console.log("🔍 Looking for order:", response.orderId ?? response.id);
       console.log(
         "🔍 Available orders:",
@@ -564,7 +536,7 @@ export const useSocket = (
         );
 
         const updatedOrder = {
-          ...existingOrder, // ✅ This preserves ALL existing data including order_items with variant_name
+          ...existingOrder,
           status: response.status ?? existingOrder.status,
           tracking_info: response.tracking_info ?? existingOrder.tracking_info,
           updated_at: response.updated_at ?? Date.now(),
@@ -594,6 +566,7 @@ export const useSocket = (
         }
 
         if (sendPushNotification) {
+          console.log("Calling sendPushNotification for status update:", updatedOrder.orderId);
           sendPushNotification(updatedOrder);
         }
       } else {
@@ -605,11 +578,14 @@ export const useSocket = (
 
     return () => {
       console.log("🔌 Disconnecting socket...");
-      // Don't disconnect global socket unless it's the last instance
-      setSocket(null);
-      setIsConnected(false);
+      if (socketInstance) {
+        socketInstance.disconnect();
+        globalSocket = null;
+        setSocket(null);
+        setIsConnected(false);
+      }
     };
-  }, [accessToken, restaurantId]);
+  }, [accessToken, restaurantId, sendPushNotification]);
 
   return {
     socket,

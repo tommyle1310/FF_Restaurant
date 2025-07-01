@@ -65,42 +65,50 @@ interface Address {
 
 const EditProfileComponent = () => {
   const auth = useSelector((state: RootState) => state.auth);
-  const { id, avatar, contact_email, contact_phone, restaurant_id } = auth;
+  const { id, avatar, contact_email, contact_phone, restaurant_id, restaurant_name, owner_name, specialize_in, description } = auth;
   const dispatch = useDispatch();
+
+  console.log('cehck res name', restaurant_name, owner_name, specialize_in, contact_email, contact_phone);
 
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
 
   // Form state
-  const [restaurantName, setRestaurantName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [description, setDescription] = useState("");
-  const [addressId, setAddressId] = useState("");
-  const [foodCategoryIds, setFoodCategoryIds] = useState<string[]>([]);
-
+  const [restaurantName, setRestaurantName] = useState(restaurant_name || "");
+  const [ownerName, setOwnerName] = useState(owner_name || "");
+  const [descriptionState, setDescription] = useState(description || "");
+  const [addressId, setAddressId] = useState(auth.address?.id || "");
+  const [foodCategoryIds, setFoodCategoryIds] = useState<string[]>(
+    (Array.isArray(specialize_in) ? specialize_in.map((item: any) => item.id) : [])
+  );
   const [contactEmails, setContactEmails] = useState<ContactEmail[]>(
-    contact_email || [{ title: "Primary", email: "", is_default: true }]
+    contact_email && contact_email.length > 0 && contact_email[0].email
+      ? contact_email
+      : [{ title: "Primary", email: "", is_default: true }]
   );
-
   const [contactPhones, setContactPhones] = useState<ContactPhone[]>(
-    contact_phone || [{ title: "Primary", number: "", is_default: true }]
+    contact_phone && contact_phone.length > 0 && contact_phone[0].number
+      ? contact_phone
+      : [{ title: "Primary", number: "", is_default: true }]
   );
-
-  const [openingHours, setOpeningHours] = useState<OpeningHours>({
-    mon: { from: 900, to: 2200 },
-    tue: { from: 900, to: 2200 },
-    wed: { from: 900, to: 2200 },
-    thu: { from: 900, to: 2200 },
-    fri: { from: 900, to: 2300 },
-    sat: { from: 1000, to: 2300 },
-    sun: { from: 1000, to: 2200 },
-  });
-
-  const [status, setStatus] = useState<Status>({
-    is_open: true,
-    is_active: true,
-    is_accepted_orders: true,
-  });
+  const [openingHours, setOpeningHours] = useState<OpeningHours>(
+    auth.opening_hours || {
+      mon: { from: 900, to: 2200 },
+      tue: { from: 900, to: 2200 },
+      wed: { from: 900, to: 2200 },
+      thu: { from: 900, to: 2200 },
+      fri: { from: 900, to: 2300 },
+      sat: { from: 1000, to: 2300 },
+      sun: { from: 1000, to: 2200 },
+    }
+  );
+  const [status, setStatus] = useState<Status>(
+    auth.status || {
+      is_open: true,
+      is_active: true,
+      is_accepted_orders: true,
+    }
+  );
 
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -129,41 +137,6 @@ const EditProfileComponent = () => {
         showModal("Failed to fetch data", "error");
       });
   }, []);
-
-  useEffect(() => {
-    if (restaurant_id) {
-      setIsLoading(true);
-      axiosInstance
-        .get(`/restaurants/${restaurant_id}`)
-        .then((response) => {
-          if (response.data.EC === 0) {
-            const data = response.data.data;
-            setRestaurantName(data.restaurant_name || "");
-            setOwnerName(data.owner_name || "");
-            setDescription(data.description || "");
-            setAddressId(data.address_id || "");
-
-            if (data.specialize_in && Array.isArray(data.specialize_in)) {
-              const specializedIds = data.specialize_in.map(
-                (item: any) => item.id
-              );
-              setFoodCategoryIds(specializedIds);
-            }
-
-            setContactEmails(data.contact_email || []);
-            setContactPhones(data.contact_phone || []);
-            setOpeningHours(data.opening_hours || openingHours);
-            setStatus(data.status || status);
-          }
-        })
-        .catch((error) => {
-          showModal("Failed to fetch restaurant data", "error");
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }
-  }, [restaurant_id]);
 
   const showModal = (message: string, type: "success" | "error") => {
     setModalMessage(message);
@@ -245,7 +218,6 @@ const EditProfileComponent = () => {
         avatar: responseData.avatar,
       };
 
-      // Update both Redux and AsyncStorage
       Promise.all([
         dispatch(setAuthState(newAuthState)),
         dispatch(saveTokenToAsyncStorage(newAuthState)),
@@ -257,7 +229,7 @@ const EditProfileComponent = () => {
           showModal("Failed to update local state", "error");
         });
     }
-  }, [responseData]);
+  }, [responseData, auth, dispatch]);
 
   const handleContactEmailsChange = (newEmails: ContactEmail[]) => {
     setContactEmails(newEmails);
@@ -321,7 +293,7 @@ const EditProfileComponent = () => {
         {
           restaurant_name: restaurantName,
           owner_name: ownerName,
-          description,
+          description: descriptionState,
           address_id: addressId,
           specialize_in: foodCategoryIds,
           contact_email: contactEmails,
@@ -338,7 +310,6 @@ const EditProfileComponent = () => {
           ...response.data.data,
         };
 
-        // Update both Redux and AsyncStorage
         await Promise.all([
           dispatch(setAuthState(newAuthState)),
           dispatch(saveTokenToAsyncStorage(newAuthState)),
@@ -390,7 +361,7 @@ const EditProfileComponent = () => {
           />
 
           <FFInputControl
-            value={description}
+            value={descriptionState}
             setValue={setDescription}
             label="Description"
             placeholder="Enter description"
