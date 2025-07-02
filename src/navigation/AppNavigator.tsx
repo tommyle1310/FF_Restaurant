@@ -34,6 +34,7 @@ import Spinner from "../components/FFSpinner";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { TouchableOpacity, View } from "react-native";
 import MenuItemFormScreen from "../app/screens/MenuItemFormScreen";
+import NotificationsScreen from "../app/screens/NotificationsScreen";
 import { Type_Address } from "../types/Address";
 import PaymentMethodScreen from "../app/screens/PaymentMethodScreen";
 import ChangePasswordScreen from "../app/screens/ChangePasswordScreen";
@@ -68,6 +69,7 @@ export type MainStackParamList = {
   CustomerFeedback: undefined;
   FChat: { withUserId?: string; type?: "SUPPORT" | "ORDER" | "CHATBOT"; orderId?: string; title?: string };
   SupportCenter: undefined;
+  Notification: undefined;
   Profile: undefined;
   CreateInquiry: undefined;
   ChangePassword: undefined;
@@ -346,6 +348,11 @@ const MainStackScreen = () => {
           options={{ headerShown: false }}
           name="Promotions"
           component={PromotionManagement}
+        />
+        <MainStack.Screen
+          options={{ headerShown: false }}
+          name="Notification"
+          component={NotificationsScreen}
         />
         <MainStack.Screen
           options={{ headerShown: false }}

@@ -168,7 +168,7 @@ const HomeScreen = () => {
       label: "Analytics",
       onPress: () => navigation.navigate("Statistics"),
     },
-    { id: 2, icon: "time", label: "History" },
+    { id: 2, icon: "mail-unread", label: "Notifications" , onPress: () => navigation.navigate("Notification")},
     { id: 3, icon: "star", label: "Reviews", onPress: () => navigation.navigate("RatingsReviews") },
     {
       id: 4,
