@@ -123,7 +123,7 @@ const FFAuthForm = ({
   const renderLoginForm = () => (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <FFAvatar avatar={IMAGE_URL.DEFAULT_LOGO} />
+        <FFAvatar avatar={IMAGE_URL.APP_LOGO} />
       </View>
       <Text style={styles.headerText}>Login</Text>
       <View style={styles.switchAuthContainer}>
@@ -166,7 +166,7 @@ const FFAuthForm = ({
   const renderSignUpForm = () => (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <FFAvatar avatar={IMAGE_URL.DEFAULT_LOGO} />
+        <FFAvatar avatar={IMAGE_URL.APP_LOGO} />
       </View>
       <Text style={styles.headerText}>Sign Up</Text>
       <View style={styles.switchAuthContainer}>
