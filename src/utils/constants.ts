@@ -6,7 +6,7 @@ export const IP_ADDRESS = {
   Z9_TURBO: "192.168.95.172"
 };
 
-export const BACKEND_URL = `http://${IP_ADDRESS.Z9_TURBO}:1310`;
+export const BACKEND_URL = `http://${IP_ADDRESS.HOME_1}:1310`;
 export const CHAT_SOCKET_URL = `${BACKEND_URL}/chat`;
 export const DELIVERY_FEE = 3;
 export const SERVICE_FEE = 1;

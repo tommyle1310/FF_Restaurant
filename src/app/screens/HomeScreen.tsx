@@ -23,6 +23,7 @@ import { useTheme } from "@/src/hooks/useTheme";
 import FFView from "@/src/components/FFView";
 import { Type_Address } from "@/src/types/Address";
 import { useFChatSocket } from "@/src/hooks/useFChatSocket";
+import Spinner from "@/src/components/FFSpinner";
 
 type HomeNavigationProps = StackNavigationProp<
   MainStackParamList,
@@ -189,6 +190,8 @@ const HomeScreen = () => {
       onPress: handleStartChatWithSupport,
     }, 
   ];
+
+  // return <Spinner  isVisible isOverlay />
 
   return (
     <FFSafeAreaView style={{ flex: 1, backgroundColor: "#fafbfc" }}>
