@@ -50,6 +50,7 @@ import axiosInstance from "../utils/axiosConfig";
 import FFInputControl from "../components/FFInputControl";
 import FFModal from "../components/FFModal";
 import { BACKEND_URL } from "../utils/constants";
+import FFSplashScreen from "../components/FFSplashScreen";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -551,6 +552,20 @@ const MainStackScreen = () => {
 
 const AppNavigator = () => {
   const token = useSelector((state: RootState) => state.auth.accessToken);
+  const [showSplash, setShowSplash] = useState(true);
+  const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(loadTokenFromAsyncStorage());
+  }, [dispatch]);
+
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+  };
+
+    if (showSplash) {
+    return <FFSplashScreen onFinish={handleSplashFinish} />;
+  }
+
   return (
     <RootStack.Navigator initialRouteName={token ? "Main" : "Login"}>
       <RootStack.Screen
